@@ -1,18 +1,12 @@
 const { exception } = require("console");
 const https = require("https");
 const { version } = require("./Config/OpenCodeVersion");
-const { resolve } = require("path");
+const { resolve, dirname } = require("path");
 const { promises } = require("dns");
 const { writeFile, stat, mkdir } = require("fs").promises;
 
 
 class NuTrayCore {
-  constructor() {
-    /* this.setThemePath(resolve(__dirname, "..", "..", "theme"));
-    this.getAsset("/elements/footer.html").then(file => {
-      this.saveAsset("/elements/footer.html", file);
-    }); */
-  }
 
   setId(id) {
     this.id = id;
@@ -61,37 +55,41 @@ class NuTrayCore {
   async downloadAssets() {
     const files = await this.getAssetsList();
 
-    const filesMap = files["assets"].map(async (file) => {
+    var foldersArray = [];
+
+    files["assets"].forEach(file => {
       const filename = file["path"];
-      const splitPath = filename.split("/");
-
-      /*Starts on the [1] index, because index[0] is empty,
-       and ends before the index that contains the filename.
-       We only need the directories
-      */
-
-      var folderArray = [];
-      for (var i = 1; i < splitPath.length - 1; i++) {
-        // const folderExists = stat(`${this.path}/splitPath[i]`);
-
-        folderArray.push(splitPath[i]);
-
-        /* if (!folderExists) {
-        } */
-      }
-      const folderString = folderArray.join("/");
-
-      console.log(folderString);
-
-      // mkdir(`${this.path}/${folderString}`).catch(err => {
-      //   // console.log("Already exists!");
-      // });
-
-      // const content = await this.getAsset(filename);
-      // this.saveAsset(filename, content);
+      const dir = dirname(filename).split("/");
+      dir.shift();
+      foldersArray.push(dir);
     });
 
-    await Promise.all(filesMap);
+    foldersArray.sort((a, b) => a.length - b.length);
+
+    var folderStrings = [];
+    foldersArray.forEach(folderString => {
+      folderStrings.push(folderString.join("/"));
+    });
+
+    var uniqueFolderStrings = [...new Set(folderStrings)];
+
+    const createFoldersMap = uniqueFolderStrings.map(async (folderString) => {
+      console.log(folderString);
+
+      mkdir(`${this.path}/${folderString}`).catch(err => {
+        console.log("Already exists!");
+      });
+
+    });
+
+    const downloadFiles = files["assets"].map(async (file) => {
+      const filename = file["path"];
+      const content = await this.getAsset(filename);
+      this.saveAsset(filename, content);
+    });
+
+    await Promise.all(createFoldersMap);
+    await Promise.all(downloadFiles);
   }
 
   _createOptions(method, pathApi, body, queries) {
@@ -114,7 +112,7 @@ class NuTrayCore {
     return {
       hostname: 'opencode.tray.com.br',
       port: 443,
-      path: path,
+      path,
       method,
       headers,
     }
