@@ -2,17 +2,16 @@ const { exception } = require("console");
 const https = require("https");
 const { version } = require("./Config/OpenCodeVersion");
 const { resolve } = require("path");
-const { writeFile } = require("fs").promises;
+const { promises } = require("dns");
+const { writeFile, stat, mkdir } = require("fs").promises;
 
 
 class NuTrayCore {
   constructor() {
-    this.setId(11);
-    // this.getAssetsList();
-    this.setThemePath(resolve(__dirname, "..", "..", "theme"));
+    /* this.setThemePath(resolve(__dirname, "..", "..", "theme"));
     this.getAsset("/elements/footer.html").then(file => {
       this.saveAsset("/elements/footer.html", file);
-    });
+    }); */
   }
 
   setId(id) {
@@ -23,14 +22,18 @@ class NuTrayCore {
     this.path = path;
   }
 
-  getAssetsList() {
+  setToken(key, password) {
+    this.token = `Token ${key}_${password}`;
+  }
+
+  async getAssetsList() {
     if (typeof this.id === "undefined") {
       throw "Theme ID not set.";
     }
 
     const options = this._createOptions("GET", `/api/themes/${this.id}/assets`, {}, {});
 
-    this._request(options, {});
+    return this._request(options, {});
   }
 
   async getAsset(asset) {
@@ -55,6 +58,42 @@ class NuTrayCore {
     return console.log(`'${name}' saved!`);
   }
 
+  async downloadAssets() {
+    const files = await this.getAssetsList();
+
+    const filesMap = files["assets"].map(async (file) => {
+      const filename = file["path"];
+      const splitPath = filename.split("/");
+
+      /*Starts on the [1] index, because index[0] is empty,
+       and ends before the index that contains the filename.
+       We only need the directories
+      */
+
+      var folderArray = [];
+      for (var i = 1; i < splitPath.length - 1; i++) {
+        // const folderExists = stat(`${this.path}/splitPath[i]`);
+
+        folderArray.push(splitPath[i]);
+
+        /* if (!folderExists) {
+        } */
+      }
+      const folderString = folderArray.join("/");
+
+      console.log(folderString);
+
+      // mkdir(`${this.path}/${folderString}`).catch(err => {
+      //   // console.log("Already exists!");
+      // });
+
+      // const content = await this.getAsset(filename);
+      // this.saveAsset(filename, content);
+    });
+
+    await Promise.all(filesMap);
+  }
+
   _createOptions(method, pathApi, body, queries) {
     const queriesCopy = queries;
 
@@ -65,7 +104,7 @@ class NuTrayCore {
     console.log(path);
 
     const headers = {
-      'Authorization': "Token"
+      'Authorization': this.token
     }
 
     if (Object.keys(body).length > 0) {
