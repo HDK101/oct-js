@@ -1,10 +1,9 @@
-const { exception } = require("console");
 const https = require("https");
 const { version } = require("./Config/OpenCodeVersion");
 const { resolve, dirname } = require("path");
 const { promises } = require("dns");
 const { writeFile, stat, mkdir } = require("fs").promises;
-
+const { encode, decode } = require("./Base64");
 
 class NuTrayCore {
 
@@ -36,11 +35,9 @@ class NuTrayCore {
     }
 
     const options = this._createOptions("GET", `/api/themes/${this.id}/assets`, {}, { key: asset });
-
     const file = await this._request(options, {});
-    const buff = Buffer.from(file["content"], "base64");
 
-    return buff.toString();
+    return decode(file["content"]);
   }
 
   async saveAsset(name, content) {
@@ -91,6 +88,11 @@ class NuTrayCore {
     await Promise.all(createFoldersMap);
     await Promise.all(downloadFiles);
   }
+
+  async uploadAsset(filename, content) {
+    const data = { key: filename, value: encode(content) };
+    const options = this._createOptions("PUT", `/api/themes/${this.id}/assets`, data, {});
+  } 
 
   _createOptions(method, pathApi, body, queries) {
     const queriesCopy = queries;
