@@ -17,7 +17,10 @@ async function start() {
   nuTrayCore.saveAsset("/elements/header.html", content); */
 
   // nuTrayCore.downloadAssets();
-  nuTrayCore.uploadAsset("/js/modules/theme.js", "test");
+  // nuTrayCore.uploadAsset("/js/modules/theme.js", "test");
+  // await nuTrayCore.uploadAsset("/elements/bruh.html", "aaa");
+  await nuTrayCore.uploadAllAssets();
+  // await nuTrayCore.downloadAssets();
 }
 
 start();

@@ -2,7 +2,7 @@ const https = require("https");
 const { version } = require("./Config/OpenCodeVersion");
 const { resolve, dirname } = require("path");
 const { promises } = require("dns");
-const { writeFile, stat, mkdir } = require("fs").promises;
+const { writeFile, stat, mkdir, readFile } = require("fs").promises;
 const { encode, decode } = require("./Base64");
 
 class NuTrayCore {
@@ -92,7 +92,24 @@ class NuTrayCore {
   async uploadAsset(filename, content) {
     const data = { key: filename, value: encode(content) };
     const options = this._createOptions("PUT", `/api/themes/${this.id}/assets`, data, {});
-  } 
+
+    const done = await this._putRequest(options, data);
+
+    done ? console.log(filename, "uploaded!") : console.log("Could not upload:", filename);
+  }
+
+  async uploadAllAssets() {
+    const { assets } = await this.getAssetsList();
+
+    const uploadAll = assets.map(async (asset) => {
+      const { path } = asset;
+      // const file = await stat(`${this.path}${path}`);
+      const content = await readFile(`${this.path}${path}`);
+      await this.uploadAsset(path, content);
+    });
+
+    await Promise.all(uploadAll);
+  }
 
   _createOptions(method, pathApi, body, queries) {
     const queriesCopy = queries;
@@ -100,8 +117,6 @@ class NuTrayCore {
     Object.assign(queriesCopy, { gem_version: version })
 
     const path = `${pathApi}${this._createQueryString(queriesCopy)}`;
-
-    console.log(path);
 
     const headers = {
       'Authorization': this.token
@@ -139,6 +154,17 @@ class NuTrayCore {
     return queryArray.join("");
   }
 
+  _putRequest(options, body) {
+    return new Promise((resolve, reject) => {
+      const req = https.request(options, res => {
+        // console.log(`statusCode: ${res.statusCode}`);
+      });
+      req.end(JSON.stringify(body), () => {
+        resolve(true);
+      });
+    });
+  }
+
   _request(options, body) {
     return new Promise((resolve, reject) => {
       const req = https.request(options, res => {
@@ -147,18 +173,22 @@ class NuTrayCore {
         var data = [];
 
         res.on("data", d => {
+          //console.log(d.toString("utf-8"));
+          //console.log(options.method);
           data.push(d.toString("utf-8"));
         });
         res.on("end", () => {
           var str = data.join("");
 
           if (Object.keys(body).length > 0) {
-            req.write(data);
+            req.write(JSON.stringify(body));
           }
 
           resolve(JSON.parse(str))
         });
       });
+
+      req.on("error", error => console.log(error));
 
       req.end();
     });
