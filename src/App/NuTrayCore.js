@@ -1,9 +1,11 @@
 const https = require("https");
 const { version } = require("./Config/OpenCodeVersion");
-const { resolve, dirname } = require("path");
+const { resolve, dirname, extname } = require("path");
 const { promises } = require("dns");
-const { writeFile, stat, mkdir, readFile } = require("fs").promises;
+const { writeFile, stat, mkdir, readFile, } = require("fs").promises;
 const { encode, decode } = require("./Base64");
+const { watch, readdir } = require("fs");
+
 
 class NuTrayCore {
 
@@ -109,6 +111,51 @@ class NuTrayCore {
     });
 
     await Promise.all(uploadAll);
+  }
+
+  watch() {
+    const watchFunctions = {
+      linux: () => this._linuxFolderWatch(this.path),
+      default: () => console.log("Bruh")
+    }
+
+    const watchFunction = watchFunctions[process.platform];
+    watchFunction();
+  }
+
+  _linuxFolderWatch(path) {
+    const callback = (event, filename) => {
+      console.log(callback.myPath);
+    }
+
+    const relationalPath = path.replace(this.path, "");
+    callback.myPath = relationalPath;
+
+    const self = this;
+    watch(path, "utf-8", function(event, filename) { callback(event, filename) });
+    readdir(path, function (err, files) {
+      if (files) {
+        files.forEach(file => {
+          const pathToFile = `${path}/${file}`;
+          if (!extname(pathToFile)) {
+            self._linuxFolderWatch(pathToFile);
+          }
+        });
+      }
+    });
+  }
+
+  _
+
+  _defaultFolderWatch(path) {
+    watch(path,
+      {
+        encoding: "utf-8",
+        recursive: true
+      },
+      function (event, filename) {
+        console.log(filename);
+      });
   }
 
   _createOptions(method, pathApi, body, queries) {
