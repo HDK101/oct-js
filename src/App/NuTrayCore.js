@@ -101,7 +101,7 @@ class NuTrayCore {
   }
 
   async uploadAllAssets() {
-    const { assets } = await this.getAssetsList();
+    const { assets } = await this.getAllFilesInFolder();
 
     const uploadAll = assets.map(async (asset) => {
       const { path } = asset;
@@ -111,6 +111,10 @@ class NuTrayCore {
     });
 
     await Promise.all(uploadAll);
+  }
+
+  getAllFilesInFolder() {
+  	console.log(this.path);  
   }
 
   watch() {
@@ -144,8 +148,6 @@ class NuTrayCore {
       }
     });
   }
-
-  _
 
   _defaultFolderWatch(path) {
     watch(path,
