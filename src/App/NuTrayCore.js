@@ -2,9 +2,9 @@ const https = require("https");
 const { version } = require("./Config/OpenCodeVersion");
 const { resolve, dirname, extname } = require("path");
 const { promises } = require("dns");
-const { writeFile, stat, mkdir, readFile, } = require("fs").promises;
+const { writeFile, stat, mkdir, readFile, readdir } = require("fs").promises;
 const { encode, decode } = require("./Base64");
-const { watch, readdir } = require("fs");
+const { watch } = require("fs");
 
 
 class NuTrayCore {
@@ -42,16 +42,16 @@ class NuTrayCore {
     return decode(file["content"]);
   }
 
-  async saveAsset(name, content) {
+  saveAsset = async(name, content) => {
     /*This functions expects the following model:
      * /folder/file.extension 
      */
 
     await writeFile(`${this.path}${name}`, content, "utf-8");
-    return console.log(`'${name}' saved!`);
+    return console.log(`${name}' saved!`);
   }
 
-  async downloadAssets() {
+  downloadAssets = async() => {
     const files = await this.getAssetsList();
 
     var foldersArray = [];
@@ -91,7 +91,9 @@ class NuTrayCore {
     await Promise.all(downloadFiles);
   }
 
-  async uploadAsset(filename, content) {
+  uploadAsset = async (filename) => {
+		const content = await readFile(`${this.path}/${filename}`);
+		
     const data = { key: filename, value: encode(content) };
     const options = this._createOptions("PUT", `/api/themes/${this.id}/assets`, data, {});
 
@@ -100,24 +102,52 @@ class NuTrayCore {
     done ? console.log(filename, "uploaded!") : console.log("Could not upload:", filename);
   }
 
-  async uploadAllAssets() {
-    const { assets } = await this.getAllFilesInFolder();
+  uploadAllAssets = async () => {
+  	const files = await this.getAllFilesInFolder();
+  	const self = this;
+    const uploadAll = () => {
+      return Promise.all(files.map(async (file) => {
+				const { path } = file;
+				const relativePath = path.replace(self.path, "");
+        console.log(relativePath);
+        const content = await readFile(path);
+        await this.uploadAsset(relativePath);
+      }));
+    };
+    await uploadAll();
+  }
 
-    const uploadAll = assets.map(async (asset) => {
-      const { path } = asset;
-      // const file = await stat(`${this.path}${path}`);
-      const content = await readFile(`${this.path}${path}`);
-      await this.uploadAsset(path, content);
+  getAllFilesInFolder = async () => {
+    const path = this.path + "/";
+    const files = await this.getFiles(path);
+    return files;
+  }
+
+	getFiles = async(path = "./") => {
+	    const entries = await readdir(path, { withFileTypes: true });
+
+	    const files = entries
+	        .filter(file => !file.isDirectory())
+	        .map(file => ({ path: path + file.name }));
+
+	    const folders = entries.filter(folder => folder.isDirectory());
+
+	    for (const folder of folders)
+	        files.push(...await this.getFiles(`${path}${folder.name}/`));
+
+	    return files;
+	}
+
+  getFilesInFolder = async (folder) => {
+    return new Promise(function (resolvePromise, reject) {
+      readdir(folder, (err, files) => {
+        if (err) reject(err);
+        resolvePromise(files);
+      });
     });
-
-    await Promise.all(uploadAll);
   }
 
-  getAllFilesInFolder() {
-  	console.log(this.path);  
-  }
-
-  watch() {
+  watch = () => {
     const watchFunctions = {
       linux: () => this._linuxFolderWatch(this.path),
       default: () => console.log("Bruh")
@@ -127,16 +157,16 @@ class NuTrayCore {
     watchFunction();
   }
 
-  _linuxFolderWatch(path) {
+  _linuxFolderWatch = (path) => {
     const callback = (event, filename) => {
       console.log(callback.myPath);
     }
 
-    const relationalPath = path.replace(this.path, "");
+    const relationalPath = path.replace(this.path, "lololol");
     callback.myPath = relationalPath;
 
     const self = this;
-    watch(path, "utf-8", function(event, filename) { callback(event, filename) });
+    watch(path, "utf-8", callback);
     readdir(path, function (err, files) {
       if (files) {
         files.forEach(file => {
@@ -149,7 +179,7 @@ class NuTrayCore {
     });
   }
 
-  _defaultFolderWatch(path) {
+  _defaultFolderWatch = (path) => {
     watch(path,
       {
         encoding: "utf-8",
@@ -244,4 +274,4 @@ class NuTrayCore {
   }
 }
 
-module.exports = new NuTrayCore();
+module.exports = NuTrayCore;
