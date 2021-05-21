@@ -54,6 +54,7 @@ async function watch() {
 async function remove() {
 	const core = await createCoreFromData();
 	const fileArgument = postArguments.length > 0 ? postArguments[0] : "";
+	const postArgument = postArguments.length > 0 ? postArguments[1] : "";
 
 	await core.removeAsset(fileArgument);
 	console.log(!(await core.hasAsset(fileArgument)));
