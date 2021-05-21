@@ -34,7 +34,8 @@ async function upload() {
 		await core.uploadAllAssets();
 	} 
 	else if(postArgument === "--c") {
-		console.log("Deleting all files and uploading all");
+		await core.removeAllAssets();
+		await core.uploadAllAssets();
 	}
 	else {
 		await core.uploadAsset(postArgument);
@@ -57,7 +58,6 @@ async function remove() {
 	const postArgument = postArguments.length > 0 ? postArguments[1] : "";
 
 	await core.removeAsset(fileArgument);
-	console.log(!(await core.hasAsset(fileArgument)));
 } 
 
 const commands = {

@@ -1,9 +1,9 @@
 const https = require("https");
 const { version } = require("./Config/OpenCodeVersion");
 const { dirname } = require("path");
-const { writeFile, stat, mkdir, readFile, readdir, unlink } = require("fs").promises;
+const { writeFile, stat, mkdir, readFile, readdir, unlink, access } = require("fs").promises;
 const { encode, decode } = require("./Base64");
-const { watch } = require("fs");
+const { watch, constants } = require("fs");
 
 class NuTrayCore {
 	constructor() {
@@ -11,12 +11,15 @@ class NuTrayCore {
 		this.removeAsset = this.removeAsset.bind(this);
 		this.saveAsset = this.saveAsset.bind(this);
 		this.removeAsset = this.removeAsset.bind(this);
+		this.removeAssetServer = this.removeAssetServer.bind(this);
+		this.deleteAssetLocally = this.deleteAssetLocally.bind(this);
 		this.uploadAsset = this.uploadAsset.bind(this);
 		this.uploadAllAssets = this.uploadAllAssets.bind(this);
 		this.getAllFilesInFolder = this.getAllFilesInFolder.bind(this);
 		this.getFiles = this.getFiles.bind(this);
+		this.handleFileCallback = this.handleFileCallback.bind(this);
 		this.watch = this.watch.bind(this);
-		this._linuxFolderWatch = this._linuxFolderWatch.bind(this);
+		this._folderWatch = this._folderWatch.bind(this);
 	}
 
 	setId(id) {
@@ -42,8 +45,8 @@ class NuTrayCore {
 			{},
 			{}
 		);
-
-		return this._request(options, {});
+		
+		return await this._request(options, {});
 	}
 
 	async hasAsset(asset) {
@@ -82,29 +85,48 @@ class NuTrayCore {
 	}
 
 	async removeAsset(asset) {
-		const options = this._createOptions(
-			"DELETE",
-			`/api/themes/${this.id}/assets`,
-			{},
-			{ key: asset }
-		);
 		try {	
-			await this.deleteAssetLocally(`${this.path}${asset}`);
-			await this._request(options, {});
+			await this.deleteAssetLocally(asset);
+			await this.removeAssetServer(asset);
+			return !(await this.hasAsset(asset));
 		}
 		catch(err) {
 			console.error(err);
 		}
 	}
 
+	async removeAssetServer(asset) {
+		const options = this._createOptions(
+			"DELETE",
+			`/api/themes/${this.id}/assets`,
+			{},
+			{ key: asset }
+		);
+		await this._request(options, {});
+	}
+
+	async removeAllAssets() {
+		const { assets } = await this.getAssetsList();
+		const self = this;
+
+		const removeAllAssetsServer = () => {
+			return Promise.all(assets.map(async({ path }) => {
+				await self.removeAssetServer(path);
+			}));
+		};
+		
+		await removeAllAssetsServer();
+	}
+
 	async deleteAssetLocally(asset) {
+		const fullPath = `${this.path}${asset}`;
 		try {
-			const stats = await stat(asset);
-			if (stats.isFile()) return await unlink(asset);
+			const stats = await stat(fullPath);
+			if (stats.isFile()) return await unlink(fullPath);
 			else throw "Found a folder, not a asset";
 		}
 		catch {
-			throw "Locally asset not found";
+			console.error("Locally asset not found");
 		}
 	}
 
@@ -157,7 +179,7 @@ class NuTrayCore {
 	}
 
 	async uploadAsset(asset) {
-		const content = await readFile(`${this.path}/${asset}`);
+		const content = await readFile(`${this.path}${asset}`);
 
 		const data = { key: asset, value: encode(content) };
 
@@ -213,22 +235,37 @@ class NuTrayCore {
 	}
 
 	async watch() {
-		const watchFunctions = {
-			linux: () => this._linuxFolderWatch(this.path),
-			default: () => console.log("Bruh"),
-		};
-
-		const watchFunction = watchFunctions[process.platform];
-		watchFunction();
+		linux: () => this._folderWatch(this.path),
 	}
 
-	async _linuxFolderWatch(path) {
+	async fileExists(path) {
+		try {
+			await access(`${this.path}${path}`, constants.R_OK);
+		}
+		catch {
+			return false;
+		}
+		return true;
+	}
+
+	async handleFileCallback(event, file, folder) {
+		const filePath = `${folder}/${file}`;
+		const handleFunctions = {
+			rename: async() => {
+				await this.fileExists(filePath) && await this.uploadAsset(filePath);
+			},
+		};
+		handleFunctions[event]();
+	}
+
+	async _folderWatch(path) {
 		const callback = async(event, filename) => {
-			await this.uploadAsset(`${callback.myPath}/${filename}`);
+			this.handleFileCallback(event, filename, callback.myPath);
 		};
 
 		const relationalPath = path.replace(this.path, "");
 		callback.myPath = relationalPath;
+		console.log(relationalPath);
 
 		const self = this;
 		watch(path, "utf-8", callback);
@@ -240,21 +277,8 @@ class NuTrayCore {
 			.map((file) => ({ path: path + "/" + file.name }));
 
 		folders.forEach(({ path:ownPath }) => {
-			self._linuxFolderWatch(ownPath);
+			self._folderWatch(ownPath);
 		});
-	}
-
-	async _defaultFolderWatch(path) {
-		watch(
-			path,
-			{
-				encoding: "utf-8",
-				recursive: true,
-			},
-			function (event, filename) {
-				console.log(filename);
-			}
-		);
 	}
 
 	_createOptions(method, pathApi, body, queries) {
@@ -322,8 +346,6 @@ class NuTrayCore {
 				var data = [];
 
 				res.on("data", (d) => {
-					//console.log(d.toString("utf-8"));
-					//console.log(options.method);
 					data.push(d.toString("utf-8"));
 				});
 				res.on("end", () => {
