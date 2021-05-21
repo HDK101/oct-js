@@ -8,7 +8,7 @@ const decode = (content) => {
 	return buff.toString("utf-8");
 };
 
-
 module.exports = {
-	encode, decode
+	encode,
+	decode,
 };

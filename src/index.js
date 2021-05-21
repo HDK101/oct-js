@@ -2,12 +2,13 @@ const nuTrayCore = require("./App/NuTrayCore");
 const { resolve } = require("path");
 const { readFile } = require("fs/promises");
 
-
 async function start() {
 	nuTrayCore.setId(25);
 	nuTrayCore.setThemePath(resolve(__dirname, "..", "theme"));
 
-	const fileJson = await readFile(resolve(__dirname, "..", "token-data.json"), { encoding: "utf-8" });
+	const fileJson = await readFile(resolve(__dirname, "..", "token-data.json"), {
+		encoding: "utf-8",
+	});
 	const { key, password } = JSON.parse(fileJson);
 
 	nuTrayCore.setToken(key, password);
@@ -31,4 +32,3 @@ start();
     console.log(`Filename: ${filename}`);
   }
 }); */
-
