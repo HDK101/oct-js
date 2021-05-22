@@ -20,6 +20,8 @@ class NuTrayCore {
 		this.handleFileCallback = this.handleFileCallback.bind(this);
 		this.watch = this.watch.bind(this);
 		this._folderWatch = this._folderWatch.bind(this);
+		this.assetsCooldown = {};
+		this.watchQueue = [];
 	}
 
 	setId(id) {
@@ -236,7 +238,7 @@ class NuTrayCore {
 
 	async watch() {
 		console.log("Started watching folder:", this.path);
-		this._folderWatch(this.path)
+		this._folderWatch(this.path);
 	}
 
 	async fileExists(path) {
@@ -249,33 +251,50 @@ class NuTrayCore {
 		return true;
 	}
 
+	async setAssetCooldown(asset) {
+		if (typeof this.assetsCooldown[asset] !== "undefined") {	
+			this.assetsCooldown[asset] = !this.assetsCooldown[asset];
+		}
+		else {
+			this.assetsCooldown[asset] = true;
+		}
+		console.log(this.assetsCooldown);
+	}
+
+	async assetInCooldown(asset) {
+		if (typeof this.assetsCooldown[asset] === "undefined") {	
+			this.assetsCooldown[asset] = false;
+		}
+		return this.assetsCooldown[asset];
+	}
+
 	async handleFileCallback(event, file, folder) {
 		const filePath = `${folder}/${file}`;
 		const handleFunctions = {
-			rename: async() => {
-				const exists = await this.fileExists(filePath);
-				if (!exists) this.removeAssetServer(filePath);
-				else await this.uploadAsset(filePath);
+			default: async() => {
+				this.watchQueue.push({ filePath, event });
+				console.log(this.watchQueue);
 			},
 		};
-		handleFunctions[event]();
+		const selectedEvent = event in Object.keys(handleFunctions) || "default";
+		handleFunctions[selectedEvent]();
 	}
 
 	async _folderWatch(path) {
-		const callback = async(event, filename) => {
-			this.handleFileCallback(event, filename, callback.myPath);
-		};
-
-		const relationalPath = path.replace(this.path, "");
-		callback.myPath = relationalPath;
+		// const relationalPath = path.replace(this.path, "");
 		const self = this;
-		watch(path, "utf-8", callback);
 		
 
 		const allFiles = await readdir(path, { withFileTypes: true });
 		const folders = allFiles
 			.filter((file) => file.isDirectory())
 			.map((file) => ({ path: path + "/" + file.name }));
+		const files = allFiles
+			.filter((file) => !file.isDirectory())
+			.map((file) => ({ path: path + "/" + file.name }));
+
+		console.log(folders);
+		console.log(files);
 
 		folders.forEach(({ path:ownPath }) => {
 			self._folderWatch(ownPath);
