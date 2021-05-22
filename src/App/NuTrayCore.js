@@ -235,7 +235,8 @@ class NuTrayCore {
 	}
 
 	async watch() {
-		linux: () => this._folderWatch(this.path),
+		console.log("Started watching folder:", this.path);
+		this._folderWatch(this.path)
 	}
 
 	async fileExists(path) {
@@ -252,7 +253,9 @@ class NuTrayCore {
 		const filePath = `${folder}/${file}`;
 		const handleFunctions = {
 			rename: async() => {
-				await this.fileExists(filePath) && await this.uploadAsset(filePath);
+				const exists = await this.fileExists(filePath);
+				if (!exists) this.removeAssetServer(filePath);
+				else await this.uploadAsset(filePath);
 			},
 		};
 		handleFunctions[event]();
@@ -265,8 +268,6 @@ class NuTrayCore {
 
 		const relationalPath = path.replace(this.path, "");
 		callback.myPath = relationalPath;
-		console.log(relationalPath);
-
 		const self = this;
 		watch(path, "utf-8", callback);
 		
