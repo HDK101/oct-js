@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const OctCore = require("../App/NuTrayCore.js");
-const { readFile } = require("fs").promises;
+const { readFile, writeFile } = require("fs").promises;
 const { resolve } = require("path");
 const argv = process.argv;
 
@@ -55,16 +55,45 @@ async function watch() {
 async function remove() {
 	const core = await createCoreFromData();
 	const fileArgument = postArguments.length > 0 ? postArguments[0] : "";
-	const postArgument = postArguments.length > 0 ? postArguments[1] : "";
 
 	await core.removeAsset(fileArgument);
-} 
+}
+
+async function themeNew() {
+	const core = new OctCore();
+	const keyArgument = postArguments.length > 0 ? postArguments[0] : "";
+	const passwordArgument = postArguments.length > 0 ? postArguments[1] : "";
+	const nameArgument = postArguments.length > 0 ? postArguments[2] : "";
+
+	core.setToken(keyArgument, passwordArgument);
+	const theme = await core.themeNew(nameArgument);
+	await createThemeData(keyArgument, passwordArgument, theme);
+}
+
+async function createThemeData(key, password, { theme_id, preview }) {
+	const json = JSON.stringify({
+		key,
+		password,
+		id: theme_id,
+		preview
+	});
+	
+	const data = new Uint8Array(Buffer.from(json));
+	
+	try {
+		await writeFile("themeData.json", data);
+	}
+	catch(err) {
+		console.error(err);
+	}
+}
 
 const commands = {
 	upload: upload,
 	download: download,
 	watch: watch,
 	remove: remove,
+	new: themeNew
 };
 
 const selectedCommand = commands[mainArgument];

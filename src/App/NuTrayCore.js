@@ -3,7 +3,8 @@ const { version } = require("./Config/OpenCodeVersion");
 const { dirname } = require("path");
 const { writeFile, stat, mkdir, readFile, readdir, unlink, access } = require("fs").promises;
 const { encode, decode } = require("./Base64");
-const { watch, constants } = require("fs");
+const { constants } = require("fs");
+const FWatcher = require("./Watch");
 
 class NuTrayCore {
 	constructor() {
@@ -17,11 +18,8 @@ class NuTrayCore {
 		this.uploadAllAssets = this.uploadAllAssets.bind(this);
 		this.getAllFilesInFolder = this.getAllFilesInFolder.bind(this);
 		this.getFiles = this.getFiles.bind(this);
-		this.handleFileCallback = this.handleFileCallback.bind(this);
+		this.themeNew = this.themeNew.bind(this);
 		this.watch = this.watch.bind(this);
-		this._folderWatch = this._folderWatch.bind(this);
-		this.assetsCooldown = {};
-		this.watchQueue = [];
 	}
 
 	setId(id) {
@@ -34,6 +32,26 @@ class NuTrayCore {
 
 	setToken(key, password) {
 		this.token = `Token ${key}_${password}`;
+	}
+
+	async themeNew(name) {
+		const theme = {
+			theme_base: name,
+			name,
+			gem_version: version
+		};
+		const options = this._createOptions(
+			"POST",
+			"/api/themes",
+			{ theme },
+			{}
+		);
+
+		return await this._request(options, { theme });
+	}
+
+	async themeConfigure(name) {
+		
 	}
 
 	async getAssetsList() {
@@ -133,7 +151,7 @@ class NuTrayCore {
 	}
 
 	async saveAsset(asset, content) {
-		/*This functions expects the following model:
+	/*This functions expects the following model:
      * /folder/file.extension
      */
 
@@ -181,6 +199,9 @@ class NuTrayCore {
 	}
 
 	async uploadAsset(asset) {
+	/*This functions expects the following model:
+     * /folder/file.extension
+     */
 		const content = await readFile(`${this.path}${asset}`);
 
 		const data = { key: asset, value: encode(content) };
@@ -237,8 +258,12 @@ class NuTrayCore {
 	}
 
 	async watch() {
-		console.log("Started watching folder:", this.path);
-		this._folderWatch(this.path);
+		const watcher = new FWatcher(this.path, {
+			onCreate: this.uploadAsset,
+			onUpdate: this.uploadAsset,
+			onDelete: this.removeAssetServer,
+		});
+		watcher.watch();
 	}
 
 	async fileExists(path) {
@@ -249,56 +274,6 @@ class NuTrayCore {
 			return false;
 		}
 		return true;
-	}
-
-	async setAssetCooldown(asset) {
-		if (typeof this.assetsCooldown[asset] !== "undefined") {	
-			this.assetsCooldown[asset] = !this.assetsCooldown[asset];
-		}
-		else {
-			this.assetsCooldown[asset] = true;
-		}
-		console.log(this.assetsCooldown);
-	}
-
-	async assetInCooldown(asset) {
-		if (typeof this.assetsCooldown[asset] === "undefined") {	
-			this.assetsCooldown[asset] = false;
-		}
-		return this.assetsCooldown[asset];
-	}
-
-	async handleFileCallback(event, file, folder) {
-		const filePath = `${folder}/${file}`;
-		const handleFunctions = {
-			default: async() => {
-				this.watchQueue.push({ filePath, event });
-				console.log(this.watchQueue);
-			},
-		};
-		const selectedEvent = event in Object.keys(handleFunctions) || "default";
-		handleFunctions[selectedEvent]();
-	}
-
-	async _folderWatch(path) {
-		// const relationalPath = path.replace(this.path, "");
-		const self = this;
-		
-
-		const allFiles = await readdir(path, { withFileTypes: true });
-		const folders = allFiles
-			.filter((file) => file.isDirectory())
-			.map((file) => ({ path: path + "/" + file.name }));
-		const files = allFiles
-			.filter((file) => !file.isDirectory())
-			.map((file) => ({ path: path + "/" + file.name }));
-
-		console.log(folders);
-		console.log(files);
-
-		folders.forEach(({ path:ownPath }) => {
-			self._folderWatch(ownPath);
-		});
 	}
 
 	_createOptions(method, pathApi, body, queries) {
@@ -371,14 +346,14 @@ class NuTrayCore {
 				res.on("end", () => {
 					var str = data.join("");
 
-					if (Object.keys(body).length > 0) {
-						req.write(JSON.stringify(body));
-					}
-
 					!statusCodeOnly && resolve(JSON.parse(str));
 					statusCodeOnly && resolve(res.statusCode);
 				});
 			});
+
+			if (Object.keys(body).length > 0) {
+				req.write(JSON.stringify(body));
+			}
 
 			req.on("error", (error) => console.log(error));
 
