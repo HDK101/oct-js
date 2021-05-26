@@ -70,6 +70,17 @@ async function themeNew() {
 	await createThemeData(keyArgument, passwordArgument, theme);
 }
 
+async function themeConfigure() {
+	const core = new OctCore();
+	const keyArgument = postArguments.length > 0 ? postArguments[0] : "";
+	const passwordArgument = postArguments.length > 0 ? postArguments[1] : "";
+	const idArgument = postArguments.length > 0 ? postArguments[2] : "";
+
+	core.setToken(keyArgument, passwordArgument);
+	await core.themeConfigure(keyArgument, passwordArgument, idArgument);
+	// await createThemeData(keyArgument, passwordArgument, theme);
+}
+
 async function createThemeData(key, password, { theme_id, preview }) {
 	const json = JSON.stringify({
 		key,
@@ -93,7 +104,8 @@ const commands = {
 	download: download,
 	watch: watch,
 	remove: remove,
-	new: themeNew
+	new: themeNew,
+	configure: themeConfigure
 };
 
 const selectedCommand = commands[mainArgument];

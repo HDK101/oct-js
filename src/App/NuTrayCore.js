@@ -50,8 +50,24 @@ class NuTrayCore {
 		return await this._request(options, { theme });
 	}
 
-	async themeConfigure(name) {
-		
+	async getThemeConfig(id) {
+		const options = this._createOptions(
+			"POST",
+			"/api/check",
+			{},
+			{}
+		);
+		return await this._request(options, { theme_id: id });
+	}
+
+	async themeConfigure(key, password, id) {
+		const themeData = {
+			key,
+			password,
+			id
+		};
+
+		console.log(await this.getThemeConfig(id));
 	}
 
 	async getAssetsList() {
