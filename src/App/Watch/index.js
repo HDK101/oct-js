@@ -1,4 +1,5 @@
-const { readdir, stat } = require("fs").promises;
+const { readFile, readdir, stat } = require("fs").promises;
+const crypto = require("crypto");
 
 class FWatcher {
 	constructor(mainPath, { onCreate, onUpdate, onDelete }) {
@@ -28,6 +29,21 @@ class FWatcher {
 
 		return sizes;
 	}
+
+	async getFilesHashesInFolder(path) {
+		const allFiles = await readdir(path, { withFileTypes: true });
+		const files = allFiles
+			.filter((file) => !file.isDirectory())
+			.map((file) => file.name);
+		const hashes = {};
+		await Promise.all(files.map(async(file) => {
+			const fullPath = `${path}/${file}`;
+			const hash = await this.checkFileHash(fullPath);
+			hashes[file] = hash;
+		}));
+
+		return hashes;
+	}
 	
 	async getFoldersInside(path) {
 		const allFiles = await readdir(path, { withFileTypes: true });
@@ -39,14 +55,25 @@ class FWatcher {
 	async handleWatchEvent() {
 		const keys = Object.keys(this.watchFolders);
 		await Promise.all(keys.map(async(key) => {
-			const { sizes, folders, relationalPath } = this.watchFolders[key];
+			const { sizes, hashes, folders, relationalPath } = this.watchFolders[key];
 			const newSizes = await this.getFilesSizesInFolder(key);
 			const newKeys = Object.keys(newSizes);
+			const newHashes = await this.getFilesHashesInFolder(key);
 			await Promise.all(newKeys.map(async(newKey) => {
-				//Update file
+				//Update file(for different sizes)
 				if (typeof sizes[newKey] !== "undefined" && sizes[newKey] !== newSizes[newKey]) {
-					console.log("Update: ", newKey);	
-					await this.onUpdate(relationalPath + newKey);		
+					console.log("Update: ", newKey);
+					await this.onUpdate(relationalPath + newKey);
+				}
+				//Update file(equal size, different content)
+				else if (typeof sizes[newKey] !== "undefined" && sizes[newKey] === newSizes[newKey]) {
+					const newHash = newHashes[newKey];
+					const oldHash = hashes[newKey];
+					
+					if (oldHash != newHash) {
+						console.log("Update: ", newKey);
+						await this.onUpdate(relationalPath + newKey);
+					}
 				}
 				//Create file
 				else if(typeof sizes[newKey] === "undefined") {
@@ -69,7 +96,7 @@ class FWatcher {
 				this.addFolderToWatch(`${key}/${folder}`);
 			});
 			
-			this.watchFolders[key] = { sizes: newSizes, folders: newFolders, relationalPath };
+			this.watchFolders[key] = { sizes: newSizes, hashes:newHashes, folders: newFolders, relationalPath };
 		}));
 	}
 
@@ -82,13 +109,19 @@ class FWatcher {
 	async addFolderToWatch(path) {
 		const folders = await this.getFoldersInside(path);
 		const sizes = await this.getFilesSizesInFolder(path);
+		const hashes = await this.getFilesHashesInFolder(path);
 		
 		const relationalPath = path.replace(this.mainPath, "") + "/";
-		this.watchFolders[path] = { sizes, folders, relationalPath };
+		this.watchFolders[path] = { sizes, hashes, folders, relationalPath };
 
 		folders.forEach(folder => {
 			this.addFolderToWatch(`${path}/${folder}`);
 		});
+	}
+
+	async checkFileHash(filePath) {
+		const content = await readFile(filePath, "utf-8");
+		return crypto.createHash("md5").update(content).digest("hex");
 	}
 }
 

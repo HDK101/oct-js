@@ -19,6 +19,7 @@ class NuTrayCore {
 		this.getAllFilesInFolder = this.getAllFilesInFolder.bind(this);
 		this.getFiles = this.getFiles.bind(this);
 		this.themeNew = this.themeNew.bind(this);
+		this.themeDelete = this.themeDelete.bind(this);
 		this.watch = this.watch.bind(this);
 	}
 
@@ -50,7 +51,7 @@ class NuTrayCore {
 		return await this._request(options, { theme });
 	}
 
-	async getThemeConfig(id) {
+	async themeConfigure(id) {
 		const options = this._createOptions(
 			"POST",
 			"/api/check",
@@ -60,20 +61,21 @@ class NuTrayCore {
 		return await this._request(options, {});
 	}
 
-	async themeConfigure(key, password, id) {
-		const themeData = {
-			key,
-			password,
-			id
-		};
-
-		return await this.getThemeConfig(id);
-	}
-
 	async listAllThemes() {
 		const options = this._createOptions(
 			"GET",
 			"/api/list",
+			{},
+			{}
+		);
+
+		return await this._request(options, {});
+	}
+
+	async themeDelete(id) {
+		const options = this._createOptions(
+			"DELETE",
+			`/api/themes/${id}`,
 			{},
 			{}
 		);

@@ -77,8 +77,18 @@ async function themeConfigure() {
 	const idArgument = postArguments.length > 0 ? postArguments[2] : "";
 
 	core.setToken(keyArgument, passwordArgument);
-	const theme = await core.themeConfigure(keyArgument, passwordArgument, idArgument);
+	const theme = await core.themeConfigure(idArgument);
 	await createThemeData(keyArgument, passwordArgument, theme);
+}
+
+async function themeDelete() {
+	const core = new OctCore();
+	const keyArgument = postArguments.length > 0 ? postArguments[0] : "";
+	const passwordArgument = postArguments.length > 0 ? postArguments[1] : "";
+	const idArgument = postArguments.length > 0 ? postArguments[2] : "";
+
+	core.setToken(keyArgument, passwordArgument);
+	await core.themeDelete(idArgument);
 }
 
 async function listThemes() {
@@ -126,8 +136,9 @@ const commands = {
 	watch: watch,
 	remove: remove,
 	new: themeNew,
+	delete: themeDelete,
 	configure: themeConfigure,
-	list: listThemes
+	list: listThemes,
 };
 
 const selectedCommand = commands[mainArgument];
