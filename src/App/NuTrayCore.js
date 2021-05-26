@@ -31,7 +31,7 @@ class NuTrayCore {
 	}
 
 	setToken(key, password) {
-		this.token = `Token ${key}_${password}`;
+		this.token = `Token token=${key}_${password}`;
 	}
 
 	async themeNew(name) {
@@ -55,9 +55,9 @@ class NuTrayCore {
 			"POST",
 			"/api/check",
 			{},
-			{}
+			{ theme_id: id }
 		);
-		return await this._request(options, { theme_id: id });
+		return await this._request(options, {});
 	}
 
 	async themeConfigure(key, password, id) {
@@ -67,7 +67,18 @@ class NuTrayCore {
 			id
 		};
 
-		console.log(await this.getThemeConfig(id));
+		return await this.getThemeConfig(id);
+	}
+
+	async listAllThemes() {
+		const options = this._createOptions(
+			"GET",
+			"/api/list",
+			{},
+			{}
+		);
+
+		return await this._request(options, {});
 	}
 
 	async getAssetsList() {

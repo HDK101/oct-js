@@ -77,8 +77,29 @@ async function themeConfigure() {
 	const idArgument = postArguments.length > 0 ? postArguments[2] : "";
 
 	core.setToken(keyArgument, passwordArgument);
-	await core.themeConfigure(keyArgument, passwordArgument, idArgument);
-	// await createThemeData(keyArgument, passwordArgument, theme);
+	const theme = await core.themeConfigure(keyArgument, passwordArgument, idArgument);
+	await createThemeData(keyArgument, passwordArgument, theme);
+}
+
+async function listThemes() {
+	let core;
+	const keyArgument = postArguments.length > 0 ? postArguments[0] : "";
+	const passwordArgument = postArguments.length > 0 ? postArguments[1] : "";
+
+	if (keyArgument === "" || passwordArgument === "") {
+		core = await createCoreFromData();
+	}
+	else {
+		core = new OctCore();
+		core.setToken(keyArgument, passwordArgument);
+	}
+	
+	const { themes } = await core.listAllThemes();
+
+	themes.forEach(({ id, name, published }) => {
+		const publishedText = published === 1 ? "Publicado" : "Não publicado";
+		console.log(`\nNome: ${name}\nID: ${id}\n${publishedText}\n`);
+	});
 }
 
 async function createThemeData(key, password, { theme_id, preview }) {
@@ -105,7 +126,8 @@ const commands = {
 	watch: watch,
 	remove: remove,
 	new: themeNew,
-	configure: themeConfigure
+	configure: themeConfigure,
+	list: listThemes
 };
 
 const selectedCommand = commands[mainArgument];
