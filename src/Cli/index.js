@@ -66,7 +66,8 @@ async function themeNew() {
 	const nameArgument = postArguments.length > 0 ? postArguments[2] : "";
 
 	core.setToken(keyArgument, passwordArgument);
-	const theme = await core.themeNew(nameArgument);
+	const response = await core.themeNew(nameArgument);
+	const { data: theme } = response;
 	await createThemeData(keyArgument, passwordArgument, theme);
 }
 
@@ -77,7 +78,7 @@ async function themeConfigure() {
 	const idArgument = postArguments.length > 0 ? postArguments[2] : "";
 
 	core.setToken(keyArgument, passwordArgument);
-	const theme = await core.themeConfigure(idArgument);
+	const { data: theme } = await core.themeConfigure(idArgument);
 	await createThemeData(keyArgument, passwordArgument, theme);
 }
 
@@ -104,7 +105,8 @@ async function listThemes() {
 		core.setToken(keyArgument, passwordArgument);
 	}
 	
-	const { themes } = await core.listAllThemes();
+	const { data } = await core.listAllThemes();
+	const { themes } = data;
 
 	themes.forEach(({ id, name, published }) => {
 		const publishedText = published === 1 ? "Publicado" : "Não publicado";

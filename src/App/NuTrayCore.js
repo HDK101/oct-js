@@ -5,9 +5,16 @@ const { writeFile, stat, mkdir, readFile, readdir, unlink, access } = require("f
 const { encode, decode } = require("./Base64");
 const { constants } = require("fs");
 const FWatcher = require("./Watch");
+const Requests = require("./Requests");
 
 class NuTrayCore {
 	constructor() {
+		this.requests = new Requests();
+		this.bindAll();
+	}
+
+	bindAll() {
+		this.requests = new Requests();
 		this.downloadAssets = this.downloadAssets.bind(this);
 		this.removeAsset = this.removeAsset.bind(this);
 		this.saveAsset = this.saveAsset.bind(this);
@@ -32,7 +39,7 @@ class NuTrayCore {
 	}
 
 	setToken(key, password) {
-		this.token = `Token token=${key}_${password}`;
+		this.requests.setAuthorizationToken(`Token token=${key}_${password}`);
 	}
 
 	async themeNew(name) {
@@ -44,8 +51,7 @@ class NuTrayCore {
 		const options = this._createOptions(
 			"POST",
 			"/api/themes",
-			{ theme },
-			{}
+			{ body: { theme } },
 		);
 
 		return await this._request(options, { theme });
@@ -55,8 +61,11 @@ class NuTrayCore {
 		const options = this._createOptions(
 			"POST",
 			"/api/check",
-			{},
-			{ theme_id: id }
+			{ 
+				queries: {
+					theme_id: id
+				}
+			}
 		);
 		return await this._request(options, {});
 	}
@@ -64,9 +73,7 @@ class NuTrayCore {
 	async listAllThemes() {
 		const options = this._createOptions(
 			"GET",
-			"/api/list",
-			{},
-			{}
+			"/api/list"
 		);
 
 		return await this._request(options, {});
@@ -75,9 +82,7 @@ class NuTrayCore {
 	async themeDelete(id) {
 		const options = this._createOptions(
 			"DELETE",
-			`/api/themes/${id}`,
-			{},
-			{}
+			`/api/themes/${id}`
 		);
 
 		return await this._request(options, {});
@@ -90,9 +95,7 @@ class NuTrayCore {
 
 		const options = this._createOptions(
 			"GET",
-			`/api/themes/${this.id}/assets`,
-			{},
-			{}
+			`/api/themes/${this.id}/assets`
 		);
 		
 		return await this._request(options, {});
@@ -106,8 +109,7 @@ class NuTrayCore {
 		const options = this._createOptions(
 			"GET",
 			`/api/themes/${this.id}/assets`,
-			{},
-			{ key: asset }
+			{ queries: { key: asset } }
 		);
 		const { statusCode } = await this._request(options, {}, true);
 
@@ -125,12 +127,10 @@ class NuTrayCore {
 		const options = this._createOptions(
 			"GET",
 			`/api/themes/${this.id}/assets`,
-			{},
-			{ key: asset }
+			{ queries: { key: asset } }
 		);
-		const file = await this._request(options, {});
-
-		return decode(file["content"]);
+		const { data, code } = await this._request(options, {});
+		return decode(data["content"]);
 	}
 
 	async removeAsset(asset) {
@@ -148,8 +148,26 @@ class NuTrayCore {
 		const options = this._createOptions(
 			"DELETE",
 			`/api/themes/${this.id}/assets`,
-			{},
-			{ key: asset }
+			{ queries: { key: asset } }
+		);
+		return await this._request(options, {});
+	}
+
+	async removeAsset(asset) {
+		try {	
+			await this.deleteAssetLocally(asset);
+			await this.removeAssetServer(asset);
+			return !(await this.hasAsset(asset));
+		}
+		catch(err) {
+			console.error(err);
+		}
+	}
+
+	async removeAssetServer(asset) {
+		const options = this._createOptions(
+			"DELETE",
+			`/api/themes/${this.id}/assets`
 		);
 		await this._request(options, {});
 	}
@@ -183,18 +201,21 @@ class NuTrayCore {
 	/*This functions expects the following model:
      * /folder/file.extension
      */
-
-		await writeFile(`${this.path}${asset}`, content, "utf-8");
-		return console.log(`${asset}' saved!`);
+		try {
+			await writeFile(`${this.path}${asset}`, content, "utf-8");
+			return true;
+		}
+		catch(err) {
+			return false;
+		} 
 	}
 
 	async downloadAssets() {
-		const files = await this.getAssetsList();
-
+		const { data: files } = await this.getAssetsList();
 		var foldersArray = [];
 
-		files["assets"].forEach((file) => {
-			const filename = file["path"];
+		files.assets.forEach((file) => {
+			const filename = file.path;
 			const dir = dirname(filename).split("/");
 			dir.shift();
 			foldersArray.push(dir);
@@ -213,7 +234,7 @@ class NuTrayCore {
 			console.log(folderString);
 
 			mkdir(`${this.path}/${folderString}`).catch((err) => {
-				console.log("Already exists!");
+				console.error("Already exists!");
 			});
 		});
 
@@ -233,36 +254,44 @@ class NuTrayCore {
      */
 		const content = await readFile(`${this.path}${asset}`);
 
-		const data = { key: asset, value: encode(content) };
+		const body = { key: asset, value: encode(content) };
 
 		const options = this._createOptions(
 			"PUT",
 			`/api/themes/${this.id}/assets`,
-			data,
-			{}
+			{ body }
 		);
 
-		const done = await this._putRequest(options, data);
-
-		done
-			? console.log(asset, "uploaded!")
-			: console.log("Could not upload:", asset);
+		return await this._putRequest(options, data);
 	}
 
 	async uploadAllAssets() {
 		const files = await this.getAllFilesInFolder();
-		const self = this;
-		const uploadAll = () => {
-			return Promise.all(
-				files.map(async (file) => {
-					const { path } = file;
-					const relativePath = path.replace(self.path, "");
-					console.log(relativePath);
-					await this.uploadAsset(relativePath);
-				})
-			);
-		};
-		await uploadAll();
+		const uploadedFiles = {};
+		await Promise.all(
+			files.map(async (file) => {
+				const { path } = file;
+				const relativePath = path.replace(this.path, "");
+				uploadedFiles[relativePath] = await this.uploadAsset(relativePath);
+			})
+		);
+		return uploadedFiles;
+	}
+
+	async getFilesInside(path) {
+		const entries = await readdir(path, { withFileTypes: true });
+
+		return files = entries
+			.filter((file) => !file.isDirectory())
+			.map((file) => ({ path: path + file.name }));
+	}
+
+	async getFoldersInside(path) {
+		const entries = await readdir(path, { withFileTypes: true });
+
+		return files = entries
+			.filter((file) => file.isDirectory())
+			.map((file) => ({ path: path + file.name }));
 	}
 
 	async getAllFilesInFolder() {
@@ -272,13 +301,8 @@ class NuTrayCore {
 	}
 
 	async getFiles(path = "./") {
-		const entries = await readdir(path, { withFileTypes: true });
-
-		const files = entries
-			.filter((file) => !file.isDirectory())
-			.map((file) => ({ path: path + file.name }));
-
-		const folders = entries.filter((folder) => folder.isDirectory());
+		const files = getFilesInside(path); 
+		const folders = getFoldersInside(path); 
 
 		for (const folder of folders)
 			files.push(...(await this.getFiles(`${path}${folder.name}/`)));
@@ -303,91 +327,6 @@ class NuTrayCore {
 			return false;
 		}
 		return true;
-	}
-
-	_createOptions(method, pathApi, body, queries) {
-		const queriesCopy = queries;
-
-		Object.assign(queriesCopy, { gem_version: version });
-
-		const path = `${pathApi}${this._createQueryString(queriesCopy)}`;
-
-		const headers = {
-			Authorization: this.token,
-		};
-
-		if (Object.keys(body).length > 0) {
-			Object.assign(headers, {
-				"Content-Type": "application/json",
-				"Content-Length": JSON.stringify(body).length,
-			});
-		}
-
-		return {
-			hostname: "opencode.tray.com.br",
-			port: 443,
-			path,
-			method,
-			headers,
-		};
-	}
-
-	_createQueryString(queries) {
-		var queryArray = [];
-		if (Object.keys(queries).length > 0) {
-			queryArray.push("?");
-
-			const queriesArray = Object.keys(queries);
-			const lastQuery = queriesArray[queriesArray.length - 1];
-
-			Object.keys(queries).forEach((query) => {
-				queryArray.push(`${query}=${queries[query]}`);
-
-				if (queries[query] != queries[lastQuery]) {
-					queryArray.push("&");
-				}
-			});
-		}
-		return queryArray.join("");
-	}
-
-	_putRequest(options, body) {
-		return new Promise((resolve, reject) => {
-			const req = https.request(options, (res) => {
-				// console.log(`statusCode: ${res.statusCode}`);
-			});
-			req.end(JSON.stringify(body), () => {
-				resolve(true);
-			});
-		});
-	}
-
-	_request(options, body, statusCodeOnly = false) {
-		return new Promise((resolve, reject) => {
-			const req = https.request(options, (res) => {
-				console.log(`statusCode: ${res.statusCode}`);
-
-				var data = [];
-
-				res.on("data", (d) => {
-					data.push(d.toString("utf-8"));
-				});
-				res.on("end", () => {
-					var str = data.join("");
-
-					!statusCodeOnly && resolve(JSON.parse(str));
-					statusCodeOnly && resolve(res.statusCode);
-				});
-			});
-
-			if (Object.keys(body).length > 0) {
-				req.write(JSON.stringify(body));
-			}
-
-			req.on("error", (error) => console.log(error));
-
-			req.end();
-		});
 	}
 }
 
