@@ -1,4 +1,3 @@
-const https = require("https");
 const { version } = require("./Config/OpenCodeVersion");
 const { dirname } = require("path");
 const { writeFile, stat, mkdir, readFile, readdir, unlink, access } = require("fs").promises;
@@ -8,13 +7,18 @@ const FWatcher = require("./Watch");
 const Requests = require("./Requests");
 
 class NuTrayCore {
-	constructor() {
+	constructor(objectParams = {}) {
+		const  { key, password, id, themePath } = objectParams;
 		this.requests = new Requests();
+		this.requests.setOpenCodeVersion(version);
+		this.requestFunctions = this.requests.getRelatedFunctions();
 		this.bindAll();
+		this.setToken(key, password);
+		this.setId(id);
+		this.setThemePath(themePath);
 	}
 
 	bindAll() {
-		this.requests = new Requests();
 		this.downloadAssets = this.downloadAssets.bind(this);
 		this.removeAsset = this.removeAsset.bind(this);
 		this.saveAsset = this.saveAsset.bind(this);
@@ -43,22 +47,26 @@ class NuTrayCore {
 	}
 
 	async themeNew(name) {
+		const { request, createOptions } = this.requestFunctions;
+
 		const theme = {
 			theme_base: name,
 			name,
 			gem_version: version
 		};
-		const options = this._createOptions(
+		const options = createOptions(
 			"POST",
 			"/api/themes",
 			{ body: { theme } },
 		);
 
-		return await this._request(options, { theme });
+		return await request(options, { theme });
 	}
 
 	async themeConfigure(id) {
-		const options = this._createOptions(
+		const { request, createOptions } = this.requestFunctions;		
+
+		const options = createOptions(
 			"POST",
 			"/api/check",
 			{ 
@@ -67,51 +75,58 @@ class NuTrayCore {
 				}
 			}
 		);
-		return await this._request(options, {});
+		return await request(options, {});
 	}
 
 	async listAllThemes() {
-		const options = this._createOptions(
+		const { request, createOptions } = this.requestFunctions;
+
+		const options = createOptions(
 			"GET",
 			"/api/list"
 		);
 
-		return await this._request(options, {});
+		return await request(options, {});
 	}
 
 	async themeDelete(id) {
-		const options = this._createOptions(
+		const { request, createOptions } = this.requestFunctions;
+		const options = createOptions(
 			"DELETE",
 			`/api/themes/${id}`
 		);
 
-		return await this._request(options, {});
+		return await request(options, {});
 	}
 
 	async getAssetsList() {
+		const { request, createOptions } = this.requestFunctions;
+
 		if (typeof this.id === "undefined") {
 			throw "Theme ID not set.";
 		}
 
-		const options = this._createOptions(
+		const options = createOptions(
 			"GET",
 			`/api/themes/${this.id}/assets`
 		);
 		
-		return await this._request(options, {});
+		return await request(options, {});
 	}
 
 	async hasAsset(asset) {
+		const { request, createOptions } = this.requestFunctions;
+
 		if (typeof this.id === "undefined") {
 			throw "Theme ID not set.";
 		}
 
-		const options = this._createOptions(
+		const options = createOptions(
 			"GET",
 			`/api/themes/${this.id}/assets`,
 			{ queries: { key: asset } }
 		);
-		const { statusCode } = await this._request(options, {}, true);
+		const { statusCode } = await request(options, {}, true);
 
 		const statusCodeFirstNumber = Math.floor(statusCode / 100);
 
@@ -120,16 +135,18 @@ class NuTrayCore {
 	}
 
 	async getAsset(asset) {
+		const { request, createOptions } = this.requestFunctions;
+
 		if (typeof this.id === "undefined") {
 			throw "Theme ID not set.";
 		}
 
-		const options = this._createOptions(
+		const options = createOptions(
 			"GET",
 			`/api/themes/${this.id}/assets`,
 			{ queries: { key: asset } }
 		);
-		const { data, code } = await this._request(options, {});
+		const { data, code } = await request(options, {});
 		return decode(data["content"]);
 	}
 
@@ -145,12 +162,14 @@ class NuTrayCore {
 	}
 
 	async removeAssetServer(asset) {
-		const options = this._createOptions(
+		const { request, createOptions } = this.requestFunctions;
+
+		const options = createOptions(
 			"DELETE",
 			`/api/themes/${this.id}/assets`,
 			{ queries: { key: asset } }
 		);
-		return await this._request(options, {});
+		return await request(options, {});
 	}
 
 	async removeAsset(asset) {
@@ -165,11 +184,13 @@ class NuTrayCore {
 	}
 
 	async removeAssetServer(asset) {
-		const options = this._createOptions(
+		const { request, createOptions } = this.requestFunctions;
+
+		const options = createOptions(
 			"DELETE",
 			`/api/themes/${this.id}/assets`
 		);
-		await this._request(options, {});
+		await request(options, {});
 	}
 
 	async removeAllAssets() {
@@ -252,17 +273,18 @@ class NuTrayCore {
 	/*This functions expects the following model:
      * /folder/file.extension
      */
+		const { putRequest, createOptions } = this.requestFunctions;
 		const content = await readFile(`${this.path}${asset}`);
 
 		const body = { key: asset, value: encode(content) };
 
-		const options = this._createOptions(
+		const options = createOptions(
 			"PUT",
 			`/api/themes/${this.id}/assets`,
 			{ body }
 		);
 
-		return await this._putRequest(options, data);
+		return await putRequest(options, data);
 	}
 
 	async uploadAllAssets() {

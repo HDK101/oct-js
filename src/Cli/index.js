@@ -9,20 +9,15 @@ const mainArgument = argv[2];
 const postArguments = argv.length > 3 ? argv.slice(3) : [];
 
 async function createCoreFromData() {
-	return new Promise(function (resolvePromise) {
-		const path = process.cwd();
-		const themeDataPath = resolve(path, "themeData.json");
-		readFile(themeDataPath)
-			.then((file) => JSON.parse(file))
-			.then((json) => {
-				const { id, key, password } = json;
-				const core = new OctCore();
-				core.setThemePath(path);
-				core.setId(id);
-				core.setToken(key, password);
-				resolvePromise(core);
-			})
-			.catch((err) => console.log(err));
+	const path = process.cwd();
+	const themeDataContent = await readFile(resolve(path, "themeData.json"), "utf-8");
+	const themeData = JSON.parse(themeDataContent);
+	const { id, key, password } = themeData;
+	return new OctCore({
+		key,
+		password,
+		id,
+		themePath: path
 	});
 }
 
@@ -60,53 +55,62 @@ async function remove() {
 }
 
 async function themeNew() {
-	const core = new OctCore();
 	const keyArgument = postArguments.length > 0 ? postArguments[0] : "";
 	const passwordArgument = postArguments.length > 0 ? postArguments[1] : "";
 	const nameArgument = postArguments.length > 0 ? postArguments[2] : "";
 
-	core.setToken(keyArgument, passwordArgument);
+	const core = new OctCore({
+		key: keyArgument,
+		password:  passwordArgument
+	});
+
 	const response = await core.themeNew(nameArgument);
 	const { data: theme } = response;
 	await createThemeData(keyArgument, passwordArgument, theme);
 }
 
 async function themeConfigure() {
-	const core = new OctCore();
 	const keyArgument = postArguments.length > 0 ? postArguments[0] : "";
 	const passwordArgument = postArguments.length > 0 ? postArguments[1] : "";
 	const idArgument = postArguments.length > 0 ? postArguments[2] : "";
 
-	core.setToken(keyArgument, passwordArgument);
+	const core = new OctCore({
+		key: keyArgument,
+		password: passwordArgument,
+	});
+
 	const { data: theme } = await core.themeConfigure(idArgument);
 	await createThemeData(keyArgument, passwordArgument, theme);
 }
 
 async function themeDelete() {
-	const core = new OctCore();
 	const keyArgument = postArguments.length > 0 ? postArguments[0] : "";
 	const passwordArgument = postArguments.length > 0 ? postArguments[1] : "";
 	const idArgument = postArguments.length > 0 ? postArguments[2] : "";
+
+	const core = new OctCore({
+		key: keyArgument,
+		password: passwordArgument
+	});
 
 	core.setToken(keyArgument, passwordArgument);
 	await core.themeDelete(idArgument);
 }
 
 async function listThemes() {
-	let core;
 	const keyArgument = postArguments.length > 0 ? postArguments[0] : "";
 	const passwordArgument = postArguments.length > 0 ? postArguments[1] : "";
-
-	if (keyArgument === "" || passwordArgument === "") {
-		core = await createCoreFromData();
-	}
-	else {
-		core = new OctCore();
-		core.setToken(keyArgument, passwordArgument);
-	}
+	const hasArgument = keyArgument !== "" && passwordArgument !== ""
 	
+	const core = hasArgument ? new OctCore({
+		key: keyArgument,
+		password: passwordArgument
+	}) : await createCoreFromData();
+
 	const { data } = await core.listAllThemes();
 	const { themes } = data;
+
+	console.log(data);
 
 	themes.forEach(({ id, name, published }) => {
 		const publishedText = published === 1 ? "Publicado" : "Não publicado";
@@ -143,5 +147,37 @@ const commands = {
 	list: listThemes,
 };
 
+const helpCommands = {
+	upload: [
+		"ARQUIVO  #Manda o arquivo pro servidor",
+		"--c  #Deleta todos os arquivos do tema no servidor e faz upload dos que estão na pasta "
+	],
+	download: "#Faz download de todos os arquivos do tema",
+	watch: "#Assiste a pasta do tema e manda para o servidos as mudanças feitas",
+ 	remove: "ARQUIVO #Deleta o arquivo tanto localmente quanto no servidor",
+	new: "CHAVE(KEY) SENHA(PASSWORD) NOME_DO_TEMA #Cria um novo tema",
+	delete: "CHAVE(KEY) SENHA(PASSWORD) ID_DO_TEMA  #Deleta um tema",
+	configure: "CHAVE(KEY) SENHA(PASSWORD) ID_DO_TEMA  #Baixa a configuração do tema",
+	list: [
+		"CHAVE(KEY) SENHA(PASSWORD) #Lista todos os temas",
+		"#Lista todos os temas usando a chave e a senha da configuração localizada na pasta",
+	]
+}
+
 const selectedCommand = commands[mainArgument];
-selectedCommand();
+if (selectedCommand) selectedCommand();
+else {
+	console.log("COMANDOS:");
+	helpKeys = Object.keys(helpCommands);
+	helpKeys.forEach(help => {
+		if (Array.isArray(helpCommands[help])) {
+			console.log(`  oct ${help}:`);
+			helpCommands[help].forEach(text => {
+				console.log("    oct", help, text);
+			});
+		}
+		else {
+			console.log(`  oct ${help} ${helpCommands[help]}`);
+		}
+	});
+}
