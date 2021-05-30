@@ -284,7 +284,7 @@ class NuTrayCore {
 			{ body }
 		);
 
-		return await putRequest(options, data);
+		return await putRequest(options, body);
 	}
 
 	async uploadAllAssets() {

@@ -33,7 +33,10 @@ async function upload() {
 		await core.uploadAllAssets();
 	}
 	else {
-		await core.uploadAsset(postArgument);
+		const { code } = await core.uploadAsset(postArgument);
+		if(code === 201) {
+			console.log(postArgument, "enviado");
+		}	
 	}
 }
 

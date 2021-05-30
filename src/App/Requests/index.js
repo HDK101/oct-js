@@ -69,9 +69,21 @@ class Requests {
 
 	putRequest(options, body) {
 		return new Promise((resolve, reject) => {
-			const req = https.request(options); 
+			var data = [];
+			var str = "";
+			const req = https.request(options, res => {
+				res.on("data", (d) => {
+					data.push(d.toString("utf-8"));
+				});
+				res.on("end", () => {
+					resolve({ 
+						data: JSON.parse(data.join("")),
+						code: res.statusCode
+					});
+				});
+			}); 
+
 			req.end(JSON.stringify(body), () => {
-				resolve(true);
 			});
 		});
 	}
@@ -80,7 +92,6 @@ class Requests {
 		return new Promise((resolve, reject) => {
 			const req = https.request(options, (res) => {
 				var data = [];
-
 				res.on("data", (d) => {
 					data.push(d.toString("utf-8"));
 				});
