@@ -34,8 +34,13 @@ async function upload() {
 	}
 	else {
 		const { code } = await core.uploadAsset(postArgument);
-		if(code === 201) {
+		const series = Math.floor(code / 100);
+		if(series === 2) {
 			console.log(postArgument, "enviado");
+		}
+		else if(series === 4 || series === 5) {
+			console.error("Erro ao enviar o arquivo pro servidor");
+			console.error("Código da resposta:", code);
 		}	
 	}
 }
