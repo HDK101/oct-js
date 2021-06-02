@@ -1,5 +1,5 @@
 const https = require("https");
-
+const { safeParse } = require("../../JSON");
 
 class Requests {
 	constructor() {
@@ -77,7 +77,7 @@ class Requests {
 				});
 				res.on("end", () => {
 					resolve({ 
-						data: JSON.parse(data.join("")),
+						data: safeParse(data.join("")),
 						code: res.statusCode
 					});
 				});
@@ -88,7 +88,7 @@ class Requests {
 		});
 	}
 
-	request(options, body, statusCodeOnly = false) {
+	request(options, body = {}, statusCodeOnly = false) {
 		return new Promise((resolve, reject) => {
 			const req = https.request(options, (res) => {
 				var data = [];
@@ -99,7 +99,7 @@ class Requests {
 					var str = data.join("");
 					!statusCodeOnly && resolve(
 						{
-							data: JSON.parse(str),
+							data: safeParse(data.join("")),
 							code: res.statusCode
 						}
 					);

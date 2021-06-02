@@ -1,14 +1,15 @@
 const { version } = require("./Config/OpenCodeVersion");
-const { dirname } = require("path");
+const { resolve, dirname } = require("path");
 const { writeFile, stat, mkdir, readFile, readdir, unlink, access } = require("fs").promises;
 const { encode, decode } = require("./Base64");
 const { constants } = require("fs");
 const FWatcher = require("./Watch");
 const Requests = require("./Requests");
+const { safeParse } = require("../JSON");
 
 class NuTrayCore {
 	constructor(objectParams = {}) {
-		const  { key, password, id, themePath } = objectParams;
+		const { key, password, id, themePath } = objectParams;
 		this.requests = new Requests();
 		this.requests.setOpenCodeVersion(version);
 		this.requestFunctions = this.requests.getRelatedFunctions();
@@ -28,6 +29,8 @@ class NuTrayCore {
 		this.uploadAsset = this.uploadAsset.bind(this);
 		this.uploadAllAssets = this.uploadAllAssets.bind(this);
 		this.getAllFilesInFolder = this.getAllFilesInFolder.bind(this);
+		this.getFilesInside = this.getFilesInside.bind(this);
+		this.getFoldersInside = this.getFoldersInside.bind(this);
 		this.getFiles = this.getFiles.bind(this);
 		this.themeNew = this.themeNew.bind(this);
 		this.themeDelete = this.themeDelete.bind(this);
@@ -146,18 +149,28 @@ class NuTrayCore {
 			`/api/themes/${this.id}/assets`,
 			{ queries: { key: asset } }
 		);
-		const { data, code } = await request(options, {});
-		return decode(data["content"]);
+		const { data, code } = await request(options) || {};
+		const { content } = data;
+		if (content) {
+			return decode(content);
+		}
+		return; 
 	}
 
 	async removeAsset(asset) {
 		try {	
-			await this.deleteAssetLocally(asset);
+			const { err } = await this.deleteAssetLocally(asset) || {};
+			if (err) return { err };
 			await this.removeAssetServer(asset);
 			return !(await this.hasAsset(asset));
+			return {
+				removed: !(await this.hasAsset(asset)),
+			}
 		}
 		catch(err) {
-			console.error(err);
+			return {
+				err
+			}
 		}
 	}
 
@@ -172,34 +185,14 @@ class NuTrayCore {
 		return await request(options, {});
 	}
 
-	async removeAsset(asset) {
-		try {	
-			await this.deleteAssetLocally(asset);
-			await this.removeAssetServer(asset);
-			return !(await this.hasAsset(asset));
-		}
-		catch(err) {
-			console.error(err);
-		}
-	}
-
-	async removeAssetServer(asset) {
-		const { request, createOptions } = this.requestFunctions;
-
-		const options = createOptions(
-			"DELETE",
-			`/api/themes/${this.id}/assets`
-		);
-		await request(options, {});
-	}
-
 	async removeAllAssets() {
-		const { assets } = await this.getAssetsList();
-		const self = this;
+		const { data } = await this.getAssetsList();
+		const { assets } = data; 
 
 		const removeAllAssetsServer = () => {
 			return Promise.all(assets.map(async({ path }) => {
-				await self.removeAssetServer(path);
+				const { err } = await this.removeAssetServer(path) || {};
+				if(err) console.log(`${path}: ${err}`);
 			}));
 		};
 		
@@ -211,10 +204,10 @@ class NuTrayCore {
 		try {
 			const stats = await stat(fullPath);
 			if (stats.isFile()) return await unlink(fullPath);
-			else throw "Found a folder, not a asset";
+			else return { err: "Found a folder, not a asset" };
 		}
-		catch {
-			console.error("Locally asset not found");
+		catch(err) {
+			return { err };
 		}
 	}
 
@@ -252,43 +245,56 @@ class NuTrayCore {
 		var uniqueFolderStrings = [...new Set(folderStrings)];
 
 		const createFoldersMap = uniqueFolderStrings.map(async (folderString) => {
-			console.log(folderString);
 
 			mkdir(`${this.path}/${folderString}`).catch((err) => {
-				console.error("Already exists!");
+				console.error(`${this.path}/${folderString} já existente`);
 			});
 		});
 
 		const downloadFiles = files["assets"].map(async (file) => {
 			const filename = file["path"];
 			const content = await this.getAsset(filename);
-			this.saveAsset(filename, content);
+			if (content) {
+				this.saveAsset(filename, content);
+				console.log(`${filename} baixado`);
+			}
+			else {
+				return filename; 
+			}
 		});
 
 		await Promise.all(createFoldersMap);
-		await Promise.all(downloadFiles);
+		const errorFiles = (await Promise.all(downloadFiles)).filter(file => typeof file !== "undefined");
+		console.error("\nPorém não foi possível baixar esses arquivos:");
+		errorFiles.forEach(file => console.error(file));
 	}
 
 	async uploadAsset(asset) {
 	/*This functions expects the following model:
      * /folder/file.extension
      */
-		const { putRequest, createOptions } = this.requestFunctions;
-		const content = await readFile(`${this.path}${asset}`);
 
-		const body = { key: asset, value: encode(content) };
+		try {
+			const content = await readFile(`${this.path}${asset}`);
+			const { putRequest, createOptions } = this.requestFunctions;
 
-		const options = createOptions(
-			"PUT",
-			`/api/themes/${this.id}/assets`,
-			{ body }
-		);
-
-		return await putRequest(options, body);
+			const body = { key: asset, value: encode(content) };
+			const options = createOptions(
+				"PUT",
+				`/api/themes/${this.id}/assets`,
+				{ body }
+			);
+			const response = await putRequest(options, body);
+			return { response, err: false, errMsg: "" }; 
+		}
+		catch(errMsg) {
+			return { err: true, errMsg };
+		}
 	}
 
 	async uploadAllAssets() {
 		const files = await this.getAllFilesInFolder();
+		//console.log(files);
 		const uploadedFiles = {};
 		await Promise.all(
 			files.map(async (file) => {
@@ -303,7 +309,7 @@ class NuTrayCore {
 	async getFilesInside(path) {
 		const entries = await readdir(path, { withFileTypes: true });
 
-		return files = entries
+		return entries
 			.filter((file) => !file.isDirectory())
 			.map((file) => ({ path: path + file.name }));
 	}
@@ -311,7 +317,7 @@ class NuTrayCore {
 	async getFoldersInside(path) {
 		const entries = await readdir(path, { withFileTypes: true });
 
-		return files = entries
+		return entries
 			.filter((file) => file.isDirectory())
 			.map((file) => ({ path: path + file.name }));
 	}
@@ -323,20 +329,21 @@ class NuTrayCore {
 	}
 
 	async getFiles(path = "./") {
-		const files = getFilesInside(path); 
-		const folders = getFoldersInside(path); 
+		const files = await this.getFilesInside(path); 
+		const folders = await this.getFoldersInside(path);
 
 		for (const folder of folders)
-			files.push(...(await this.getFiles(`${path}${folder.name}/`)));
+			files.push(...(await this.getFiles(`${folder.path}/`)));
 
 		return files;
 	}
 
-	async watch() {
-		const watcher = new FWatcher(this.path, {
+	async watch({ relationalPath, watchScripts }) {
+		const watcher = new FWatcher(resolve(relationalPath, this.path), {
 			onCreate: this.uploadAsset,
 			onUpdate: this.uploadAsset,
 			onDelete: this.removeAssetServer,
+			watchScripts
 		});
 		watcher.watch();
 	}

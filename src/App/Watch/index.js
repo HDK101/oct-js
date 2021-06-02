@@ -1,12 +1,14 @@
 const { readFile, readdir, stat } = require("fs").promises;
+const { extname } = require("path");
 const crypto = require("crypto");
 
 class FWatcher {
-	constructor(mainPath, { onCreate, onUpdate, onDelete }) {
+	constructor(mainPath, { onCreate, onUpdate, onDelete, watchScripts }) {
 		this.onCreate = onCreate;
 		this.onUpdate = onUpdate;
 		this.onDelete = onDelete;
 		this.mainPath = mainPath;
+		this.watchScripts = watchScripts;
 		this.watchFolders = {};
 		this.watch = this.watch.bind(this);
 		this.handleWatchEvent = this.handleWatchEvent.bind(this);
@@ -52,6 +54,33 @@ class FWatcher {
 			.map((file) => file.name);
 	}
 
+	async handleFile(key, sizes, newSizes, hashes, newHashes) {
+		this.watchScripts.forEach(script => {
+			if (script.ext.test(extname(key))) {
+				script.callback(key);
+			}
+		});
+		if (typeof sizes[key] !== "undefined" && sizes[key] !== newSizes[key]) {
+			console.log("Update: ", key);
+			this.onUpdate(relationalPath + key);
+		}
+		//Update file(equal size, different content)
+		else if (typeof sizes[key] !== "undefined" && sizes[key] === newSizes[key]) {
+			const newHash = newHashes[key];
+			const oldHash = hashes[key];
+				
+			if (oldHash != newHash) {
+				console.log("Update: ", key);
+				this.onUpdate(relationalPath + newKey);
+			}
+		}
+		//Create file
+		else if(typeof sizes[key] === "undefined") {
+			console.log("Create: ", newKey);
+			this.onCreate(relationalPath + key);		
+		}
+	}
+
 	async handleWatchEvent() {
 		const keys = Object.keys(this.watchFolders);
 		await Promise.all(keys.map(async(key) => {
@@ -60,26 +89,7 @@ class FWatcher {
 			const newKeys = Object.keys(newSizes);
 			const newHashes = await this.getFilesHashesInFolder(key);
 			await Promise.all(newKeys.map(async(newKey) => {
-				//Update file(for different sizes)
-				if (typeof sizes[newKey] !== "undefined" && sizes[newKey] !== newSizes[newKey]) {
-					console.log("Update: ", newKey);
-					await this.onUpdate(relationalPath + newKey);
-				}
-				//Update file(equal size, different content)
-				else if (typeof sizes[newKey] !== "undefined" && sizes[newKey] === newSizes[newKey]) {
-					const newHash = newHashes[newKey];
-					const oldHash = hashes[newKey];
-					
-					if (oldHash != newHash) {
-						console.log("Update: ", newKey);
-						await this.onUpdate(relationalPath + newKey);
-					}
-				}
-				//Create file
-				else if(typeof sizes[newKey] === "undefined") {
-					console.log("Create: ", newKey);
-					await this.onCreate(relationalPath + newKey);		
-				}
+				await this.handleFile(newKey, sizes, newSizes, hashes, newHashes);
 				delete sizes[newKey];
 			}));
 			const remainingKeys = Object.keys(sizes);
@@ -95,12 +105,12 @@ class FWatcher {
 			createdFolders.map(folder => {
 				this.addFolderToWatch(`${key}/${folder}`);
 			});
-			
 			this.watchFolders[key] = { sizes: newSizes, hashes:newHashes, folders: newFolders, relationalPath };
 		}));
 	}
 
 	async watch() {
+		console.log(this.watchScripts);
 		console.log("Started watching folder:", this.mainPath);
 		this.addFolderToWatch(this.mainPath);
 		setInterval(this.handleWatchEvent, 1000);
