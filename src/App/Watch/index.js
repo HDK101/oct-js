@@ -54,30 +54,49 @@ class FWatcher {
 			.map((file) => file.name);
 	}
 
-	async handleFile(key, sizes, newSizes, hashes, newHashes) {
-		this.watchScripts.forEach(script => {
-			if (script.ext.test(extname(key))) {
-				script.callback(key);
-			}
-		});
-		if (typeof sizes[key] !== "undefined" && sizes[key] !== newSizes[key]) {
+	handleFile(path, key, sizes, newSizes, hashes, newHashes) {
+		const equalHashes = hashes[key] === newHashes[key];
+
+		const updateDifferentSizes = typeof sizes[key] !== "undefined" && sizes[key] !== newSizes[key];
+		const updateDifferentContent = typeof sizes[key] !== "undefined" && sizes[key] === newSizes[key] && !equalHashes;
+		const createFile = typeof sizes[key] === "undefined";
+
+		if (updateDifferentSizes || updateDifferentContent || createFile) {
+			this.watchScripts.map(script => {
+				if (script.ext.test(extname(key))) {
+					const relativePath = path.replace(this.mainPath, "");
+					if (script.folder === relativePath && script.preCallback) {
+						script.preCallback(key, path, this.mainPath);
+					}
+				}
+			});
+		}
+
+		//Update file(different sizes)
+		if (updateDifferentSizes) {
 			console.log("Update: ", key);
-			this.onUpdate(relationalPath + key);
+			this.onUpdate(path + key);
 		}
 		//Update file(equal size, different content)
-		else if (typeof sizes[key] !== "undefined" && sizes[key] === newSizes[key]) {
-			const newHash = newHashes[key];
-			const oldHash = hashes[key];
-				
-			if (oldHash != newHash) {
-				console.log("Update: ", key);
-				this.onUpdate(relationalPath + newKey);
-			}
+		else if (updateDifferentContent) {
+			console.log("Update: ", key);
+			this.onUpdate(path + key);
 		}
 		//Create file
-		else if(typeof sizes[key] === "undefined") {
-			console.log("Create: ", newKey);
-			this.onCreate(relationalPath + key);		
+		else if(createFile) {
+			console.log("Create: ", key);
+			this.onCreate(path + key);		
+		}
+	
+		if (updateDifferentSizes || updateDifferentContent || createFile) {
+			this.watchScripts.forEach(script => {
+				if (script.ext.test(extname(key))) {
+					const relativePath = path.replace(this.mainPath, "");
+					if (script.folder === relativePath && typeof script.postCallback !== "undefined") {
+						script.postCallback(key, path, this.mainPath);
+					}
+				}
+			});
 		}
 	}
 
@@ -89,7 +108,7 @@ class FWatcher {
 			const newKeys = Object.keys(newSizes);
 			const newHashes = await this.getFilesHashesInFolder(key);
 			await Promise.all(newKeys.map(async(newKey) => {
-				await this.handleFile(newKey, sizes, newSizes, hashes, newHashes);
+				this.handleFile(key, newKey, sizes, newSizes, hashes, newHashes);
 				delete sizes[newKey];
 			}));
 			const remainingKeys = Object.keys(sizes);
