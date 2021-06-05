@@ -7,7 +7,7 @@ const FWatcher = require("./Watch");
 const Requests = require("./Requests");
 const { safeParse } = require("../JSON");
 
-class NuTrayCore {
+class OctCore {
 	constructor(objectParams = {}) {
 		const { key, password, id, themePath } = objectParams;
 		this.requests = new Requests();
@@ -92,7 +92,7 @@ class NuTrayCore {
 		return await request(options, {});
 	}
 
-	async themeDelete(id) {
+	async themeDelete() {
 		const { request, createOptions } = this.requestFunctions;
 		const options = createOptions(
 			"DELETE",
@@ -359,4 +359,29 @@ class NuTrayCore {
 	}
 }
 
-module.exports = NuTrayCore;
+const createTheme = async(key, password, name) => {
+	const requests = new Requests();
+	requests.setAuthorizationToken(`Token token=${key}_${password}`);
+	const { request, createOptions } = requests.getRelatedFunctions();
+
+	const theme = {
+		theme_base: name,
+		name,
+		gem_version: version
+	};
+	const options = createOptions(
+		"POST",
+		"/api/themes",
+		{ body: { theme } },
+	);
+
+	const { data } = await request(options, { theme });
+	const { theme_id } = data;
+	return new OctCore({
+		key,
+		password,
+		id: theme_id
+	});
+}
+
+module.exports = { OctCore, createTheme };
