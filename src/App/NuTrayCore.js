@@ -7,10 +7,12 @@ const FWatcher = require("./Watch");
 const Requests = require("./Requests");
 const { safeParse } = require("../JSON");
 
-class OctCore {
+class Theme {
 	constructor(objectParams = {}) {
 		const { key, password, id, themePath } = objectParams;
-		this.requests = new Requests();
+		this.requests = new Requests({
+			token: `Token token=${key}_${password}`
+		});
 		this.requests.setOpenCodeVersion(version);
 		this.requestFunctions = this.requests.getRelatedFunctions();
 		this.bindAll();
@@ -49,8 +51,11 @@ class OctCore {
 		this.requests.setAuthorizationToken(`Token token=${key}_${password}`);
 	}
 
-	async themeNew(name) {
-		const { request, createOptions } = this.requestFunctions;
+	static async create(key, password, name) {
+		const requests = new Requests({
+			token: `Token token=${key}_${password}`
+		});
+		const { request, createOptions } = requests.getRelatedFunctions();
 
 		const theme = {
 			theme_base: name,
@@ -66,8 +71,11 @@ class OctCore {
 		return await request(options, { theme });
 	}
 
-	async themeConfigure(id) {
-		const { request, createOptions } = this.requestFunctions;		
+	static async configure(key, password, id) {
+		const requests = new Requests({
+			token: `Token token=${key}_${password}`
+		});
+		const { request, createOptions } = requests.getRelatedFunctions();		
 
 		const options = createOptions(
 			"POST",
@@ -92,8 +100,12 @@ class OctCore {
 		return await request(options, {});
 	}
 
-	async themeDelete() {
-		const { request, createOptions } = this.requestFunctions;
+	static async delete(key, password, id) {
+		const requests = new Requests({
+			token: `Token token=${key}_${password}`
+		});
+		const { request, createOptions } = requests.getRelatedFunctions();
+
 		const options = createOptions(
 			"DELETE",
 			`/api/themes/${id}`
@@ -359,29 +371,4 @@ class OctCore {
 	}
 }
 
-const createTheme = async(key, password, name) => {
-	const requests = new Requests();
-	requests.setAuthorizationToken(`Token token=${key}_${password}`);
-	const { request, createOptions } = requests.getRelatedFunctions();
-
-	const theme = {
-		theme_base: name,
-		name,
-		gem_version: version
-	};
-	const options = createOptions(
-		"POST",
-		"/api/themes",
-		{ body: { theme } },
-	);
-
-	const { data } = await request(options, { theme });
-	const { theme_id } = data;
-	return new OctCore({
-		key,
-		password,
-		id: theme_id
-	});
-}
-
-module.exports = { OctCore, createTheme };
+module.exports = { Theme };

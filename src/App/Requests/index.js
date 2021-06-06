@@ -2,7 +2,9 @@ const https = require("https");
 const { safeParse } = require("../../JSON");
 
 class Requests {
-	constructor() {
+	constructor(params) {
+		const { token } = params || {};
+		this.token = token;
 		this.setAuthorizationToken = this.setAuthorizationToken.bind(this);
 		this.setOpenCodeVersion = this.setOpenCodeVersion.bind(this);
 		this.createOptions = this.createOptions.bind(this);

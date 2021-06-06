@@ -4,11 +4,14 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest"
   },
   "bin": {
-  	"oct": "./src/Cli/index.js"
+    "oct": "./src/Cli/index.js"
   },
   "author": "EMKBRO",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "jest": "^27.0.4"
+  }
 }
