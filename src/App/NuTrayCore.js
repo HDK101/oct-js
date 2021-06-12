@@ -89,8 +89,11 @@ class Theme {
 		return await request(options, {});
 	}
 
-	async listAllThemes() {
-		const { request, createOptions } = this.requestFunctions;
+	static async listAllThemes(key, password) {
+		const requests = new Requests({
+			token: `Token token=${key}_${password}`
+		});
+		const { request, createOptions } = requests.getRelatedFunctions();
 
 		const options = createOptions(
 			"GET",

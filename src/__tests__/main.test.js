@@ -9,6 +9,10 @@ jest.setTimeout(100000);
 var core; 
  
 describe("OCT main functionality(without CLI)", () => {
+	test("New theme", async() => {
+		const { code } = await Theme.create(key, password, "teste");
+		expect(code).toBe(201);	
+	});	
 	describe("Configure and delete", () => {
 		beforeAll(async() => {
 			const { data } = await Theme.create(key, password, "teste");
