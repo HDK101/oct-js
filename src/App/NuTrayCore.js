@@ -93,9 +93,14 @@ class Theme {
 		const requests = new Requests({
 			token: `Token token=${key}_${password}`
 		});
+<<<<<<< HEAD
 		
 		const { request, createOptions } = this.requestFunctions;
 		
+=======
+		const { request, createOptions } = requests.getRelatedFunctions();
+
+>>>>>>> d969eaa82ed61aee31249725ea8a3cb223975356
 		const options = createOptions(
 			"GET",
 			"/api/list"
