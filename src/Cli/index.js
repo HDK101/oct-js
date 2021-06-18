@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const OctCore = require("../App/NuTrayCore.js");
+const { Theme } = require("../App/NuTrayCore.js");
 const { readFile, writeFile, stat } = require("fs").promises;
 const { resolve } = require("path");
 const argv = process.argv;
@@ -18,7 +18,14 @@ async function fileExists(path) {
 	}
 }
 
-async function createCoreFromData() {
+async function getCredentialsFromData() {
+	const path = process.cwd();
+	const themeDataContent = await readFile(resolve(path, "themeData.json"), "utf-8");
+	const themeData = JSON.parse(themeDataContent);
+	return themeData;
+}
+
+async function createThemeFromData() {
 	const path = process.cwd();
 	if (!(await fileExists(resolve(path, "themeData.json")))) {
 		console.error("themeData.json não encontrado");
@@ -27,12 +34,21 @@ async function createCoreFromData() {
 	const themeDataContent = await readFile(resolve(path, "themeData.json"), "utf-8");
 	const themeData = JSON.parse(themeDataContent);
 	const { id, key, password } = themeData;
-	return new OctCore({
+	return new Theme({
 		key,
 		password,
 		id,
 		themePath: path
-	});
+	},
+	{
+		onUpload: (file) => console.log(file, "enviado"),
+		onDownload: (file) => console.log(file, "baixado"),
+		onError: (err) => console.error(err),
+		onDownloadsError: (files) => {
+			files.forEach(file => console.error(file));
+		},
+	}
+	);
 }
 
 async function loadWatchScripts() {
@@ -41,8 +57,8 @@ async function loadWatchScripts() {
 }
 
 async function upload() {
-	const core = await createCoreFromData();
-	if(!core) return;
+	const theme = await createThemeFromData();
+	if(!theme) return;
 	const postArgument = postArguments.length > 0 ? postArguments[0] : "";
 
 	if (!postArgument) {
@@ -51,17 +67,17 @@ async function upload() {
 	}
 
 	if (postArgument === "") {
-		await core.uploadAllAssets();
+		await theme.uploadAllAssets();
 		console.log("Todos os assets locais enviados para o tema");
 	} 
 	else if(postArgument === "--c") {
-		await core.removeAllAssets();
+		await theme.removeAllAssets();
 		console.log("Todos os assets do tema removidos");
-		await core.uploadAllAssets();
+		await theme.uploadAllAssets();
 		console.log("Todos os assets locais enviados para o tema");
 	}
 	else {
-		const { response, err, ...rest } = await core.uploadAsset(postArgument);
+		const { response, err, ...rest } = await theme.uploadAsset(postArgument);
 		if (!err) {
 				const { code } = response;
 				const series = Math.floor(code / 100);
@@ -82,24 +98,26 @@ async function upload() {
 }
 
 async function download() {
-	const core = await createCoreFromData();
-	if(!core) return;
-	await core.downloadAssets();
+	const theme = await createThemeFromData();
+	if(!theme) return;
+	await theme.downloadAssets(function(filename) {
+		console.log(filename, "baixado");
+	});
 }
 
 async function watch() {
-	const core = await createCoreFromData();
+	const theme = await createThemeFromData();
 	const relationalPath = postArguments.length > 0 ? postArguments[0] : "";
-	if(!core) return;
-	core.watch({ 
+	if(!theme) return;
+	theme.watch({ 
 		watchScripts: await loadWatchScripts(),
 		relationalPath
 	});
 }
 
 async function remove() {
-	const core = await createCoreFromData();
-	if(!core) return; 
+	const theme = await createThemeFromData();
+	if(!theme) return; 
 	const fileArgument = postArguments.length > 0 ? postArguments[0] : "";
 
 	if (!fileArgument) {
@@ -107,7 +125,7 @@ async function remove() {
 		return;
 	}
 
-	const { err } = await core.removeAsset(fileArgument) || {};
+	const { err } = await theme.removeAsset(fileArgument) || {};
 	if (!err) {
 		console.log(`${fileArgument} removido`);
 	}
@@ -118,23 +136,18 @@ async function remove() {
 }
 
 async function themeNew() {
-	const keyArgument = postArguments.length > 0 ? postArguments[0] : "";
-	const passwordArgument = postArguments.length > 0 ? postArguments[1] : "";
-	const nameArgument = postArguments.length > 0 ? postArguments[2] : "";
-	const hasArgument = keyArgument !== "" && passwordArgument !== "";
-
-	const core = new OctCore({
-		key: keyArgument,
-		password:  passwordArgument
-	});
+	const key = postArguments.length > 0 ? postArguments[0] : "";
+	const password = postArguments.length > 0 ? postArguments[1] : "";
+	const name = postArguments.length > 0 ? postArguments[2] : "";
+	const hasArgument = key !== "" && password !== "";
 
 	if(!hasArgument) { 
 		console.error("Insira uma chave e senha como parâmetros");
 		return;
 	} 
 
-	const response = await core.themeNew(nameArgument);
-	const { data: theme, code } = response;
+	const response = await Theme.create(key, password, name);
+	const { data, code } = response;
 	const series = Math.floor(code / 100);
 
 	if (series != 2) {
@@ -143,7 +156,7 @@ async function themeNew() {
 		return;
 	}
 
-	const { err } = await createThemeData(keyArgument, passwordArgument, theme) || {};
+	const { err } = await writeThemeJSON(key, password, data) || {};
 	if (err) { 
 		console.error("Não foi possível criar themeData.json");
 		console.error(err);
@@ -154,26 +167,22 @@ async function themeNew() {
 }
 
 async function themeConfigure() {
-	const keyArgument = postArguments.length > 0 ? postArguments[0] : "";
-	const passwordArgument = postArguments.length > 0 ? postArguments[1] : "";
-	const idArgument = postArguments.length > 0 ? postArguments[2] : "";
-	const hasArgument = keyArgument !== "" && passwordArgument !== "";
-
-	const core = new OctCore({
-		key: keyArgument,
-		password: passwordArgument,
-	});
+	const key = postArguments.length > 0 ? postArguments[0] : "";
+	const password = postArguments.length > 0 ? postArguments[1] : "";
+	const id = postArguments.length > 0 ? postArguments[2] : "";
+	const hasArgument = key !== "" && password !== "";
 
 	if(!hasArgument) { 
 		console.error("Insira uma chave e senha como parâmetros");
 		return;
 	}	
 
-	const { data: theme } = await core.themeConfigure(idArgument);
-	const { err } = await createThemeData(keyArgument, passwordArgument, theme) || {};
-	if (err) { 
+	const { code, data } = await Theme.configure(key, password, id);
+	const { err } = await writeThemeJSON(key, password, data) || {};
+
+	if (err || code === 401) { 
 		console.error("Não foi possível criar themeData.json");
-		console.error(err);
+		if (err) console.error(err);
 	}
 	else {
 		console.log("themeData.json criado");
@@ -181,41 +190,35 @@ async function themeConfigure() {
 }
 
 async function themeDelete() {
-	const keyArgument = postArguments.length > 0 ? postArguments[0] : "";
-	const passwordArgument = postArguments.length > 0 ? postArguments[1] : "";
-	const idArgument = postArguments.length > 0 ? postArguments[2] : "";
-	const hasArgument = keyArgument !== "" && passwordArgument !== "";
-
-	const core = new OctCore({
-		key: keyArgument,
-		password: passwordArgument
-	});
+	const key = postArguments.length > 0 ? postArguments[0] : "";
+	const password = postArguments.length > 0 ? postArguments[1] : "";
+	const id = postArguments.length > 0 ? postArguments[2] : "";
+	const hasArgument = key !== "" && password !== "";
 
 	if(!hasArgument) { 
 		console.error("Insira uma chave e senha como parâmetros");
 		return;
 	}	
 
-	await core.themeDelete(idArgument);
+	await Theme.delete(key, password, id);
 	console.log("Tema deletado");
 }
 
 async function listThemes() {
 	const keyArgument = postArguments.length > 0 ? postArguments[0] : "";
 	const passwordArgument = postArguments.length > 0 ? postArguments[1] : "";
-	const hasArgument = keyArgument !== "" && passwordArgument !== ""
-	
-	const core = hasArgument ? new OctCore({
-		key: keyArgument,
-		password: passwordArgument
-	}) : await createCoreFromData();
 
-	if (!hasArgument && !core) { 
+	const { key: keyData, password: passwordData } = getCredentialsFromData();
+
+	const key = keyArgument || keyData;
+	const password = passwordArgument || passwordData;
+
+	if (!keyArgument && !keyData && !passwordArgument && !passwordData) { 
 		console.error("Insira um chave e senha como parâmetros ou tenha um themeData.json no diretório");
 		return;
 	}
 
-	const { data } = await core.listAllThemes();
+	const { data } = await Theme.listAllThemes(key, password);
 	const { themes } = data;
 
 	themes.forEach(({ id, name, published }) => {
@@ -224,7 +227,7 @@ async function listThemes() {
 	});
 }
 
-async function createThemeData(key, password, { theme_id, preview }) {
+async function writeThemeJSON(key, password, { theme_id, preview }) {
 	const json = JSON.stringify({
 		key,
 		password,

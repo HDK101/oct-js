@@ -1,4 +1,4 @@
-const { version } = require("./Config/OpenCodeVersion");
+const { version } = require("../Config/OpenCodeVersion");
 const { resolve, dirname } = require("path");
 const { writeFile, stat, mkdir, readFile, readdir, unlink, access } = require("fs").promises;
 const { encode, decode } = require("./Base64");
@@ -8,15 +8,20 @@ const Requests = require("./Requests");
 const { safeParse } = require("../JSON");
 
 class Theme {
-	constructor(objectParams = {}) {
+	constructor(objectParams = {}, cliFunctions = {}) {
 		const { key, password, id, themePath } = objectParams;
+		const { onUpload, onError, onDownloadsError, onDownload } = cliFunctions;
+
 		this.requests = new Requests({
 			token: `Token token=${key}_${password}`
 		});
 		this.requests.setOpenCodeVersion(version);
 		this.requestFunctions = this.requests.getRelatedFunctions();
+		this.onUpload = onUpload;
+		this.onError = onError;
+		this.onDownloadsError= onDownloadsError;
+		this.onDownload = onDownload;
 		this.bindAll();
-		this.setToken(key, password);
 		this.setId(id);
 		this.setThemePath(themePath);
 	}
@@ -34,9 +39,8 @@ class Theme {
 		this.getFilesInside = this.getFilesInside.bind(this);
 		this.getFoldersInside = this.getFoldersInside.bind(this);
 		this.getFiles = this.getFiles.bind(this);
-		this.themeNew = this.themeNew.bind(this);
-		this.themeDelete = this.themeDelete.bind(this);
 		this.watch = this.watch.bind(this);
+		this.getAsset = this.getAsset.bind(this);
 	}
 
 	setId(id) {
@@ -45,10 +49,6 @@ class Theme {
 
 	setThemePath(path) {
 		this.path = path;
-	}
-
-	setToken(key, password) {
-		this.requests.setAuthorizationToken(`Token token=${key}_${password}`);
 	}
 
 	static async create(key, password, name) {
@@ -75,7 +75,7 @@ class Theme {
 		const requests = new Requests({
 			token: `Token token=${key}_${password}`
 		});
-		const { request, createOptions } = requests.getRelatedFunctions();		
+		const { request, createOptions } = requests.getRelatedFunctions();
 
 		const options = createOptions(
 			"POST",
@@ -89,9 +89,13 @@ class Theme {
 		return await request(options, {});
 	}
 
-	async listAllThemes() {
+	static async listAllThemes(key, password) {
+		const requests = new Requests({
+			token: `Token token=${key}_${password}`
+		});
+		
 		const { request, createOptions } = this.requestFunctions;
-
+		
 		const options = createOptions(
 			"GET",
 			"/api/list"
@@ -112,6 +116,12 @@ class Theme {
 		);
 
 		return await request(options, {});
+	}
+
+	async upload(asset) {
+		const { err } = await uploadAsset(asset);
+		if (err) return this.onError(`Falha envio:  ${asset}`);
+		if (this.onUpload) this.onUpload(asset);
 	}
 
 	async getAssetsList() {
@@ -163,6 +173,7 @@ class Theme {
 		);
 		const { data, code } = await request(options) || {};
 		const { content } = data;
+
 		if (content) {
 			return decode(content);
 		}
@@ -170,7 +181,7 @@ class Theme {
 	}
 
 	async removeAsset(asset) {
-		try {	
+		try {
 			const { err } = await this.deleteAssetLocally(asset) || {};
 			if (err) return { err };
 			await this.removeAssetServer(asset);
@@ -204,7 +215,7 @@ class Theme {
 		const removeAllAssetsServer = () => {
 			return Promise.all(assets.map(async({ path }) => {
 				const { err } = await this.removeAssetServer(path) || {};
-				if(err) console.log(`${path}: ${err}`);
+				if(err) this.onError(`${path}: ${err}`);
 			}));
 		};
 		
@@ -232,6 +243,7 @@ class Theme {
 			return true;
 		}
 		catch(err) {
+			this.onError(err);
 			return false;
 		} 
 	}
@@ -259,7 +271,7 @@ class Theme {
 		const createFoldersMap = uniqueFolderStrings.map(async (folderString) => {
 
 			mkdir(`${this.path}/${folderString}`).catch((err) => {
-				console.error(`${this.path}/${folderString} já existente`);
+				this.onError(`${this.path}/${folderString} já existe`);
 			});
 		});
 
@@ -268,7 +280,7 @@ class Theme {
 			const content = await this.getAsset(filename);
 			if (content) {
 				this.saveAsset(filename, content);
-				console.log(`${filename} baixado`);
+				if (this.onDownload) this.onDownload(filename);
 			}
 			else {
 				return filename; 
@@ -277,14 +289,17 @@ class Theme {
 
 		await Promise.all(createFoldersMap);
 		const errorFiles = (await Promise.all(downloadFiles)).filter(file => typeof file !== "undefined");
-		console.error("\nPorém não foi possível baixar esses arquivos:");
-		errorFiles.forEach(file => console.error(file));
+		if (errorFiles.length) {
+			this.onError("\nPorém não foi possível baixar esses arquivos:");
+			this.onDownloadsError(errorFiles);
+		}
+
 	}
 
 	async uploadAsset(asset) {
 	/*This functions expects the following model:
-     * /folder/file.extension
-     */
+		* /folder/file.extension
+		*/
 
 		try {
 			const content = await readFile(`${this.path}${asset}`);
@@ -297,16 +312,15 @@ class Theme {
 				{ body }
 			);
 			const response = await putRequest(options, body);
-			return { response, err: false, errMsg: "" }; 
+			return { response, }; 
 		}
-		catch(errMsg) {
-			return { err: true, errMsg };
+		catch(err) {
+			return { err };
 		}
 	}
 
 	async uploadAllAssets() {
 		const files = await this.getAllFilesInFolder();
-		//console.log(files);
 		const uploadedFiles = {};
 		await Promise.all(
 			files.map(async (file) => {

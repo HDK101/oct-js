@@ -8,7 +8,7 @@ class FWatcher {
 		this.onUpdate = onUpdate;
 		this.onDelete = onDelete;
 		this.mainPath = mainPath;
-		this.watchScripts = watchScripts;
+		this.watchScripts = watchScripts || [];
 		this.watchFolders = {};
 		this.watch = this.watch.bind(this);
 		this.handleWatchEvent = this.handleWatchEvent.bind(this);
@@ -72,20 +72,14 @@ class FWatcher {
 			});
 		}
 
-		//Update file(different sizes)
 		if (updateDifferentSizes) {
-			console.log("Update: ", key);
 			this.onUpdate(path + key);
 		}
-		//Update file(equal size, different content)
 		else if (updateDifferentContent) {
-			console.log("Update: ", key);
 			this.onUpdate(path + key);
 		}
-		//Create file
 		else if(createFile) {
-			console.log("Create: ", key);
-			this.onCreate(path + key);		
+			this.onCreate(path + key);
 		}
 	
 		if (updateDifferentSizes || updateDifferentContent || createFile) {
@@ -114,7 +108,6 @@ class FWatcher {
 			const remainingKeys = Object.keys(sizes);
 			//Delete file
 			await Promise.all(remainingKeys.map(async(remainingKey) => {
-				console.log("Delete: ", remainingKey);
 				await this.onDelete(relationalPath + remainingKey);
 			}));
 			
@@ -129,8 +122,6 @@ class FWatcher {
 	}
 
 	async watch() {
-		console.log(this.watchScripts);
-		console.log("Started watching folder:", this.mainPath);
 		this.addFolderToWatch(this.mainPath);
 		setInterval(this.handleWatchEvent, 1000);
 	}
