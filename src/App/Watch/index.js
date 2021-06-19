@@ -1,5 +1,5 @@
 const { readFile, readdir, stat } = require("fs").promises;
-const { extname } = require("path");
+const { extname, resolve } = require("path");
 const crypto = require("crypto");
 
 class FWatcher {
@@ -61,7 +61,7 @@ class FWatcher {
 		const updateDifferentContent = typeof sizes[key] !== "undefined" && sizes[key] === newSizes[key] && !equalHashes;
 		const createFile = typeof sizes[key] === "undefined";
 
-		if (updateDifferentSizes || updateDifferentContent || createFile) {
+		if (this.watchScripts.length > 0 && (updateDifferentSizes || updateDifferentContent || createFile)) {
 			this.watchScripts.map(script => {
 				if (script.ext.test(extname(key))) {
 					const relativePath = path.replace(this.mainPath, "");
@@ -73,16 +73,16 @@ class FWatcher {
 		}
 
 		if (updateDifferentSizes) {
-			this.onUpdate(path + key);
+			this.onUpdate(key);
 		}
 		else if (updateDifferentContent) {
-			this.onUpdate(path + key);
+			this.onUpdate(key);
 		}
 		else if(createFile) {
-			this.onCreate(path + key);
+			this.onCreate(key);
 		}
 	
-		if (updateDifferentSizes || updateDifferentContent || createFile) {
+		if (this.watchScripts.length > 0 && (updateDifferentSizes || updateDifferentContent || createFile)) {
 			this.watchScripts.forEach(script => {
 				if (script.ext.test(extname(key))) {
 					const relativePath = path.replace(this.mainPath, "");

@@ -42,6 +42,7 @@ async function createThemeFromData() {
 	},
 	{
 		onUpload: (file) => console.log(file, "enviado"),
+		onRemovido: (file) => console.log(file, "removido"),
 		onDownload: (file) => console.log(file, "baixado"),
 		onError: (err) => console.error(err),
 		onDownloadsError: (files) => {
@@ -52,8 +53,9 @@ async function createThemeFromData() {
 }
 
 async function loadWatchScripts() {
-	const path = process.cwd();
-	return require(resolve(path, "oct.watch.js"));
+	const path = resolve(process.cwd(), "oct.watch.js");
+	if (await fileExists(path)) return require(path);
+	return {}
 }
 
 async function upload() {
@@ -208,7 +210,7 @@ async function listThemes() {
 	const keyArgument = postArguments.length > 0 ? postArguments[0] : "";
 	const passwordArgument = postArguments.length > 0 ? postArguments[1] : "";
 
-	const { key: keyData, password: passwordData } = getCredentialsFromData();
+	const { key: keyData, password: passwordData } = await getCredentialsFromData();
 
 	const key = keyArgument || keyData;
 	const password = passwordArgument || passwordData;

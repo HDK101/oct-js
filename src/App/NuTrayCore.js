@@ -10,7 +10,7 @@ const { safeParse } = require("../JSON");
 class Theme {
 	constructor(objectParams = {}, cliFunctions = {}) {
 		const { key, password, id, themePath } = objectParams;
-		const { onUpload, onError, onDownloadsError, onDownload } = cliFunctions;
+		const { onUpload, onRemove, onError, onDownloadsError, onDownload } = cliFunctions;
 
 		this.requests = new Requests({
 			token: `Token token=${key}_${password}`
@@ -18,6 +18,7 @@ class Theme {
 		this.requests.setOpenCodeVersion(version);
 		this.requestFunctions = this.requests.getRelatedFunctions();
 		this.onUpload = onUpload;
+		this.onRemove = onRemove;
 		this.onError = onError;
 		this.onDownloadsError= onDownloadsError;
 		this.onDownload = onDownload;
@@ -32,8 +33,10 @@ class Theme {
 		this.saveAsset = this.saveAsset.bind(this);
 		this.removeAsset = this.removeAsset.bind(this);
 		this.removeAssetServer = this.removeAssetServer.bind(this);
+		this.remove = this.remove.bind(this);
 		this.deleteAssetLocally = this.deleteAssetLocally.bind(this);
 		this.uploadAsset = this.uploadAsset.bind(this);
+		this.upload = this.upload.bind(this);
 		this.uploadAllAssets = this.uploadAllAssets.bind(this);
 		this.getAllFilesInFolder = this.getAllFilesInFolder.bind(this);
 		this.getFilesInside = this.getFilesInside.bind(this);
@@ -93,14 +96,9 @@ class Theme {
 		const requests = new Requests({
 			token: `Token token=${key}_${password}`
 		});
-<<<<<<< HEAD
 		
-		const { request, createOptions } = this.requestFunctions;
-		
-=======
 		const { request, createOptions } = requests.getRelatedFunctions();
 
->>>>>>> d969eaa82ed61aee31249725ea8a3cb223975356
 		const options = createOptions(
 			"GET",
 			"/api/list"
@@ -124,9 +122,15 @@ class Theme {
 	}
 
 	async upload(asset) {
-		const { err } = await uploadAsset(asset);
-		if (err) return this.onError(`Falha envio:  ${asset}`);
+		const { err } = await this.uploadAsset("/" + asset);
+		if (err) return this.onError(`Falha no envio:  ${asset}`);
 		if (this.onUpload) this.onUpload(asset);
+	}
+
+	async remove(asset) {
+		const { err } = await this.removeAssetServer("/" + asset);
+		if (err) return this.onError(`Falha envio:  ${asset}`);
+		if (this.onRemove) this.onRemove(asset);
 	}
 
 	async getAssetsList() {
@@ -371,9 +375,9 @@ class Theme {
 
 	async watch({ relationalPath, watchScripts }) {
 		const watcher = new FWatcher(resolve(relationalPath, this.path), {
-			onCreate: this.uploadAsset,
-			onUpdate: this.uploadAsset,
-			onDelete: this.removeAssetServer,
+			onCreate: this.upload,
+			onUpdate: this.upload,
+			onDelete: this.remove,
 			watchScripts
 		});
 		watcher.watch();
