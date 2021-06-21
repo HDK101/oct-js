@@ -1,5 +1,5 @@
 const https = require("https");
-const { safeParse } = require("../../JSON");
+const safeParse = require("../../Util/JSONSafeParse");
 
 class Requests {
 	constructor(params) {
@@ -70,9 +70,8 @@ class Requests {
 	}
 
 	putRequest(options, body) {
-		return new Promise((resolve, reject) => {
+		return new Promise((resolve) => {
 			var data = [];
-			var str = "";
 			const req = https.request(options, res => {
 				res.on("data", (d) => {
 					data.push(d.toString("utf-8"));
@@ -91,14 +90,13 @@ class Requests {
 	}
 
 	request(options, body = {}, statusCodeOnly = false) {
-		return new Promise((resolve, reject) => {
+		return new Promise((resolve) => {
 			const req = https.request(options, (res) => {
 				var data = [];
 				res.on("data", (d) => {
 					data.push(d.toString("utf-8"));
 				});
 				res.on("end", () => {
-					var str = data.join("");
 					!statusCodeOnly && resolve(
 						{
 							data: safeParse(data.join("")),
@@ -125,7 +123,7 @@ class Requests {
 			putRequest: this.putRequest,
 			createQueryString: this.createQueryString,
 			createOptions: this.createOptions,
-		}
+		};
 	}
 }
 

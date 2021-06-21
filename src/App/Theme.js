@@ -1,11 +1,12 @@
 const { version } = require("../Config/OpenCodeVersion");
+
 const { resolve, dirname } = require("path");
-const { writeFile, stat, mkdir, readFile, readdir, unlink, access } = require("fs").promises;
-const { encode, decode } = require("./Base64");
-const { constants } = require("fs");
+const { writeFile, stat, mkdir, readFile, readdir, unlink } = require("fs").promises;
+
 const FWatcher = require("./Watch");
 const Requests = require("./Requests");
-const { safeParse } = require("../JSON");
+
+const { encode, decode } = require("../Util/Base64");
 
 class Theme {
 	constructor(objectParams = {}, cliFunctions = {}) {
@@ -180,7 +181,7 @@ class Theme {
 			`/api/themes/${this.id}/assets`,
 			{ queries: { key: asset } }
 		);
-		const { data, code } = await request(options) || {};
+		const { data } = await request(options) || {};
 		const { content } = data;
 
 		if (content) {
@@ -195,14 +196,11 @@ class Theme {
 			if (err) return { err };
 			await this.removeAssetServer(asset);
 			return !(await this.hasAsset(asset));
-			return {
-				removed: !(await this.hasAsset(asset)),
-			}
 		}
 		catch(err) {
 			return {
 				err
-			}
+			};
 		}
 	}
 
@@ -279,7 +277,7 @@ class Theme {
 
 		const createFoldersMap = uniqueFolderStrings.map(async (folderString) => {
 
-			mkdir(`${this.path}/${folderString}`).catch((err) => {
+			mkdir(`${this.path}/${folderString}`).catch(() => {
 				this.onError(`${this.path}/${folderString} já existe`);
 			});
 		});
@@ -381,16 +379,6 @@ class Theme {
 			watchScripts
 		});
 		watcher.watch();
-	}
-
-	async fileExists(path) {
-		try {
-			await access(`${this.path}${path}`, constants.R_OK);
-		}
-		catch {
-			return false;
-		}
-		return true;
 	}
 }
 

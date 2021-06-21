@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "fix": "eslint src/** --ext js --fix"
   },
   "bin": {
     "oct": "./src/Cli/index.js"
@@ -12,7 +13,9 @@
   "author": "EMKBRO",
   "license": "MIT",
   "devDependencies": {
-    "dotenv": "^10.0.0",
     "jest": "^27.0.4"
+  },
+  "dependencies": {
+    "eslint-plugin-jest": "^24.3.6"
   }
 }

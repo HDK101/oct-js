@@ -2,3 +2,4 @@ token-data.json
 /theme/
 /node_modules/
 .env
+/coverage/

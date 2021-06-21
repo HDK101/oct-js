@@ -1,22 +1,14 @@
 #!/usr/bin/env node
 
-const { Theme } = require("../App/NuTrayCore.js");
-const { readFile, writeFile, stat } = require("fs").promises;
+const { Theme } = require("../App/Theme");
+const { readFile, writeFile } = require("fs").promises;
 const { resolve } = require("path");
-const argv = process.argv;
 
+const fileExists = require("../Util/FileExists");
+
+const argv = process.argv;
 const mainArgument = argv[2];
 const postArguments = argv.length > 3 ? argv.slice(3) : [];
-
-async function fileExists(path) {
-	try {
-		await stat(path);
-		return true;
-	}
-	catch {
-		return false;
-	}
-}
 
 async function getCredentialsFromData() {
 	const path = process.cwd();
@@ -55,7 +47,7 @@ async function createThemeFromData() {
 async function loadWatchScripts() {
 	const path = resolve(process.cwd(), "oct.watch.js");
 	if (await fileExists(path)) return require(path);
-	return {}
+	return {};
 }
 
 async function upload() {
@@ -79,20 +71,20 @@ async function upload() {
 		console.log("Todos os assets locais enviados para o tema");
 	}
 	else {
-		const { response, err, ...rest } = await theme.uploadAsset(postArgument);
+		const { response, err } = await theme.uploadAsset(postArgument);
 		if (!err) {
-				const { code } = response;
-				const series = Math.floor(code / 100);
-				if(series === 2) {
-					console.log(postArgument, "enviado");
-				}
-				else if(series === 4 || series === 5) {
-					console.error("Erro ao enviar o arquivo pro servidor");
-					console.error("Código da resposta:", code);
-				}	
+			const { code } = response;
+			const series = Math.floor(code / 100);
+			if(series === 2) {
+				console.log(postArgument, "enviado");
+			}
+			else if(series === 4 || series === 5) {
+				console.error("Erro ao enviar o arquivo pro servidor");
+				console.error("Código da resposta:", code);
+			}	
 		}
 		else {
-			if (rest.errMsg.code === "ENOENT") {
+			if (err.code === "ENOENT") {
 				console.error("Arquivo não encontrado.");
 			}
 		}
@@ -265,7 +257,7 @@ const helpCommands = {
 	],
 	download: "#Faz download de todos os arquivos do tema",
 	watch: "#Assiste a pasta do tema e manda para o servidos as mudanças feitas",
- 	remove: "ARQUIVO #Deleta o arquivo tanto localmente quanto no servidor",
+	remove: "ARQUIVO #Deleta o arquivo tanto localmente quanto no servidor",
 	new: "CHAVE(KEY) SENHA(PASSWORD) NOME_DO_TEMA #Cria um novo tema",
 	delete: "CHAVE(KEY) SENHA(PASSWORD) ID_DO_TEMA  #Deleta um tema",
 	configure: "CHAVE(KEY) SENHA(PASSWORD) ID_DO_TEMA  #Baixa a configuração do tema",
@@ -273,13 +265,13 @@ const helpCommands = {
 		"CHAVE(KEY) SENHA(PASSWORD) #Lista todos os temas",
 		"#Lista todos os temas usando a chave e a senha da configuração localizada na pasta",
 	]
-}
+};
 
 const selectedCommand = commands[mainArgument];
 if (selectedCommand) selectedCommand();
 else {
 	console.log("COMANDOS:");
-	helpKeys = Object.keys(helpCommands);
+	const helpKeys = Object.keys(helpCommands);
 	helpKeys.forEach(help => {
 		if (Array.isArray(helpCommands[help])) {
 			console.log(`  oct ${help}:`);

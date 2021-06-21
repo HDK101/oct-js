@@ -1,26 +1,16 @@
 const FWatcher = require("../App/Watch");
 const { timeout, watchTimeout, testPath } = require("../Config/JestRuntime");
-const { writeFile, unlink } = require("fs").promises;
+const { writeFile } = require("fs").promises;
+
+const deleteFile = require("../Util/DeleteFile");
 
 jest.setTimeout(timeout);
 
 function delay(t, val) {
-   return new Promise(function(resolve) {
-       setTimeout(function() {
-           resolve(val);
-       }, t);
-   });
-}
-
-function deleteFile(filePath) {
-	return new Promise(async(resolve) => {
-		try {
-			await unlink(filePath);
-			resolve(true);
-		}
-		catch {
-			resolve(false);
-		}
+	return new Promise(function(resolve) {
+		setTimeout(function() {
+			resolve(val);
+		}, t);
 	});
 }
 
@@ -58,14 +48,14 @@ watcher.watch();
 
 describe("Watch(create, update, delete)", () => {
 	test("Watch create file", async() => {
-		const data = new Uint8Array(Buffer.from('Test'));
+		const data = new Uint8Array(Buffer.from("Test"));
 		await delay(watchTimeout);
 		await writeFile(testPath + "/file.txt", data);
 		await delay(watchTimeout);
 		expect(watcherTest.executed.created).toBe(true);
 	});
 	test("Watch update file", async() => {
-		const data = new Uint8Array(Buffer.from('Testing'));
+		const data = new Uint8Array(Buffer.from("Testing"));
 		await delay(watchTimeout);
 		await writeFile(testPath + "/file.txt", data);
 		await delay(watchTimeout);

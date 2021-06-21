@@ -1,3 +1,3 @@
-const OctCore = require("./App/NuTrayCore");
+const Theme = require("./App/Theme");
 
-module.exports = OctCore;
+module.exports = Theme;

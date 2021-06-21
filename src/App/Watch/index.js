@@ -1,5 +1,5 @@
 const { readFile, readdir, stat } = require("fs").promises;
-const { extname, resolve } = require("path");
+const { extname } = require("path");
 const crypto = require("crypto");
 
 class FWatcher {

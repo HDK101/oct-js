@@ -1,6 +1,6 @@
-const { Theme } = require("../App/NuTrayCore.js");
+const { Theme } = require("../App/Theme");
 const { stat } = require("fs").promises;
-const { timeout, watchTimeout, testPath, key, password } = require("../Config/JestRuntime");
+const { timeout, testPath, key, password } = require("../Config/JestRuntime");
 
 require("dotenv").config();
 
@@ -31,11 +31,11 @@ describe("OCT main functionality(without CLI)", () => {
 			core = data;
 		});
 		test("configure theme", async() => {
-			const { code, data } = await Theme.configure(key, password, core.theme_id);
+			const { code } = await Theme.configure(key, password, core.theme_id);
 			expect(code).toBe(202);
 		});
 		test("delete theme", async() => {
-			const { code } = await Theme.delete(key, password, core.theme_id);
+			await Theme.delete(key, password, core.theme_id);
 			console.log("Delete theme is working, but returns code 400, i don't know what else to send in the request, if you know what should be in the request, PM me, or pull request if you already done.");
 		});
 	});
@@ -48,7 +48,7 @@ describe("OCT main functionality(without CLI)", () => {
 				themePath: testPath,
 				id: data.theme_id
 			});
-		});7
+		});7;
 		test("Asset exists", async() => {
 			expect(await theme.hasAsset("/layouts/default.html")).toBeDefined();
 		});

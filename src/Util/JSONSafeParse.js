@@ -5,6 +5,6 @@ const safeParse = (content) => {
 	catch {
 		return {};
 	}
-} 
+}; 
 
-module.exports = { safeParse };
+module.exports = safeParse;
