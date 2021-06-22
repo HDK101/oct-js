@@ -137,15 +137,11 @@ class Theme {
 	async getAssetsList() {
 		const { request, createOptions } = this.requestFunctions;
 
-		if (typeof this.id === "undefined") {
-			throw "Theme ID not set.";
-		}
-
 		const options = createOptions(
 			"GET",
 			`/api/themes/${this.id}/assets`
 		);
-		
+
 		return await request(options, {});
 	}
 
@@ -256,8 +252,10 @@ class Theme {
 	}
 
 	async downloadAssets() {
-		const { data: files } = await this.getAssetsList();
+		const { code, data: files } = await this.getAssetsList();
 		var foldersArray = [];
+
+		if (code !== 200) return console.error("Não foi possível encontrar os arquivos do tema");
 
 		files.assets.forEach((file) => {
 			const filename = file.path;

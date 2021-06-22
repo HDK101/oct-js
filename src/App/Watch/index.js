@@ -1,5 +1,5 @@
 const { readFile, readdir, stat } = require("fs").promises;
-const { extname } = require("path");
+const { extname, resolve } = require("path");
 const crypto = require("crypto");
 
 class FWatcher {
@@ -61,10 +61,10 @@ class FWatcher {
 		const updateDifferentContent = typeof sizes[key] !== "undefined" && sizes[key] === newSizes[key] && !equalHashes;
 		const createFile = typeof sizes[key] === "undefined";
 
+		const relativePath = path.replace(this.mainPath, "");
 		if (this.watchScripts.length > 0 && (updateDifferentSizes || updateDifferentContent || createFile)) {
 			this.watchScripts.map(script => {
 				if (script.ext.test(extname(key))) {
-					const relativePath = path.replace(this.mainPath, "");
 					if (script.folder === relativePath && script.preCallback) {
 						script.preCallback(key, path, this.mainPath);
 					}
@@ -73,13 +73,13 @@ class FWatcher {
 		}
 
 		if (updateDifferentSizes) {
-			this.onUpdate(key);
+			this.onUpdate(resolve(relativePath, key));
 		}
 		else if (updateDifferentContent) {
-			this.onUpdate(key);
+			this.onUpdate(resolve(relativePath, key));
 		}
 		else if(createFile) {
-			this.onCreate(key);
+			this.onCreate(resolve(relativePath, key));
 		}
 	
 		if (this.watchScripts.length > 0 && (updateDifferentSizes || updateDifferentContent || createFile)) {
@@ -108,7 +108,7 @@ class FWatcher {
 			const remainingKeys = Object.keys(sizes);
 			//Delete file
 			await Promise.all(remainingKeys.map(async(remainingKey) => {
-				await this.onDelete(relationalPath + remainingKey);
+				await this.onDelete(resolve(relationalPath, remainingKey));
 			}));
 			
 			const newFolders = await this.getFoldersInside(key);
