@@ -1,253 +1,22 @@
 #!/usr/bin/env node
 
-const { Theme } = require("../App/Theme");
-const { readFile, writeFile } = require("fs").promises;
-const { resolve } = require("path");
-
-const fileExists = require("../Util/FileExists");
+const Cli = require("./Cli");
 
 const argv = process.argv;
 const mainArgument = argv[2];
-const postArguments = argv.length > 3 ? argv.slice(3) : [];
+const args = argv.length > 3 ? argv.slice(3) : [];
 
-async function getCredentialsFromData() {
-	const path = process.cwd();
-	const themeDataContent = await readFile(resolve(path, "themeData.json"), "utf-8");
-	const themeData = JSON.parse(themeDataContent);
-	return themeData;
-}
-
-async function createThemeFromData() {
-	const path = process.cwd();
-	if (!(await fileExists(resolve(path, "themeData.json")))) {
-		console.error("themeData.json não encontrado");
-		return;
-	}
-	const themeDataContent = await readFile(resolve(path, "themeData.json"), "utf-8");
-	const themeData = JSON.parse(themeDataContent);
-	const { id, key, password } = themeData;
-	return new Theme({
-		key,
-		password,
-		id,
-		themePath: path
-	},
-	{
-		onUpload: (file) => console.log(file, "enviado"),
-		onRemovido: (file) => console.log(file, "removido"),
-		onDownload: (file) => console.log(file, "baixado"),
-		onError: (err) => console.error(err),
-		onDownloadsError: (files) => {
-			files.forEach(file => console.error(file));
-		},
-	}
-	);
-}
-
-async function loadWatchScripts() {
-	const path = resolve(process.cwd(), "oct.watch.js");
-	if (await fileExists(path)) return require(path);
-	return {};
-}
-
-async function upload() {
-	const theme = await createThemeFromData();
-	if(!theme) return;
-	const postArgument = postArguments.length > 0 ? postArguments[0] : "";
-
-	if (!postArgument) {
-		console.error("Insira o caminho relativo para o arquivo como parâmetro");
-		return;
-	}
-
-	if (postArgument === "") {
-		await theme.uploadAllAssets();
-		console.log("Todos os assets locais enviados para o tema");
-	} 
-	else if(postArgument === "--c") {
-		await theme.removeAllAssets();
-		console.log("Todos os assets do tema removidos");
-		await theme.uploadAllAssets();
-		console.log("Todos os assets locais enviados para o tema");
-	}
-	else {
-		const { response, err } = await theme.uploadAsset(postArgument);
-		if (!err) {
-			const { code } = response;
-			const series = Math.floor(code / 100);
-			if(series === 2) {
-				console.log(postArgument, "enviado");
-			}
-			else if(series === 4 || series === 5) {
-				console.error("Erro ao enviar o arquivo pro servidor");
-				console.error("Código da resposta:", code);
-			}	
-		}
-		else {
-			if (err.code === "ENOENT") {
-				console.error("Arquivo não encontrado.");
-			}
-		}
-	}
-}
-
-async function download() {
-	const theme = await createThemeFromData();
-	if(!theme) return;
-	await theme.downloadAssets(function(filename) {
-		console.log(filename, "baixado");
-	});
-}
-
-async function watch() {
-	const theme = await createThemeFromData();
-	const relationalPath = postArguments.length > 0 ? postArguments[0] : "";
-	if(!theme) return;
-	theme.watch({ 
-		watchScripts: await loadWatchScripts(),
-		relationalPath
-	});
-}
-
-async function remove() {
-	const theme = await createThemeFromData();
-	if(!theme) return; 
-	const fileArgument = postArguments.length > 0 ? postArguments[0] : "";
-
-	if (!fileArgument) {
-		console.error("Insira o caminho relativo para o arquivo como parâmetro");
-		return;
-	}
-
-	const { err } = await theme.removeAsset(fileArgument) || {};
-	if (!err) {
-		console.log(`${fileArgument} removido`);
-	}
-	else {
-		console.error(`Não foi possível remover: ${fileArgument}`);
-		console.error(err);
-	}
-}
-
-async function themeNew() {
-	const key = postArguments.length > 0 ? postArguments[0] : "";
-	const password = postArguments.length > 0 ? postArguments[1] : "";
-	const name = postArguments.length > 0 ? postArguments[2] : "";
-	const hasArgument = key !== "" && password !== "";
-
-	if(!hasArgument) { 
-		console.error("Insira uma chave e senha como parâmetros");
-		return;
-	} 
-
-	const response = await Theme.create(key, password, name);
-	const { data, code } = response;
-	const series = Math.floor(code / 100);
-
-	if (series != 2) {
-		console.error("Não foi possível criar tema");
-		console.error("Código da requisição:", code);
-		return;
-	}
-
-	const { err } = await writeThemeJSON(key, password, data) || {};
-	if (err) { 
-		console.error("Não foi possível criar themeData.json");
-		console.error(err);
-	}
-	else {
-		console.log("themeData.json criado");
-	}
-}
-
-async function themeConfigure() {
-	const key = postArguments.length > 0 ? postArguments[0] : "";
-	const password = postArguments.length > 0 ? postArguments[1] : "";
-	const id = postArguments.length > 0 ? postArguments[2] : "";
-	const hasArgument = key !== "" && password !== "";
-
-	if(!hasArgument) { 
-		console.error("Insira uma chave e senha como parâmetros");
-		return;
-	}	
-
-	const { code, data } = await Theme.configure(key, password, id);
-	const { err } = await writeThemeJSON(key, password, data) || {};
-
-	if (err || code === 401) { 
-		console.error("Não foi possível criar themeData.json");
-		if (err) console.error(err);
-	}
-	else {
-		console.log("themeData.json criado");
-	}
-}
-
-async function themeDelete() {
-	const key = postArguments.length > 0 ? postArguments[0] : "";
-	const password = postArguments.length > 0 ? postArguments[1] : "";
-	const id = postArguments.length > 0 ? postArguments[2] : "";
-	const hasArgument = key !== "" && password !== "";
-
-	if(!hasArgument) { 
-		console.error("Insira uma chave e senha como parâmetros");
-		return;
-	}	
-
-	await Theme.delete(key, password, id);
-	console.log("Tema deletado");
-}
-
-async function listThemes() {
-	const keyArgument = postArguments.length > 0 ? postArguments[0] : "";
-	const passwordArgument = postArguments.length > 0 ? postArguments[1] : "";
-
-	const { key: keyData, password: passwordData } = await getCredentialsFromData();
-
-	const key = keyArgument || keyData;
-	const password = passwordArgument || passwordData;
-
-	if (!keyArgument && !keyData && !passwordArgument && !passwordData) { 
-		console.error("Insira um chave e senha como parâmetros ou tenha um themeData.json no diretório");
-		return;
-	}
-
-	const { data } = await Theme.listAllThemes(key, password);
-	const { themes } = data;
-
-	themes.forEach(({ id, name, published }) => {
-		const publishedText = published === 1 ? "Publicado" : "Não publicado";
-		console.log(`\nNome: ${name}\nID: ${id}\n${publishedText}\n`);
-	});
-}
-
-async function writeThemeJSON(key, password, { theme_id, preview }) {
-	const json = JSON.stringify({
-		key,
-		password,
-		id: theme_id,
-		preview
-	});
-	
-	const data = new Uint8Array(Buffer.from(json));
-	
-	try {
-		await writeFile("themeData.json", data);
-	}
-	catch(err) {
-		return { err };
-	}
-}
+const cli = new Cli({ path: process.cwd(), args });
 
 const commands = {
-	upload: upload,
-	download: download,
-	watch: watch,
-	remove: remove,
-	new: themeNew,
-	delete: themeDelete,
-	configure: themeConfigure,
-	list: listThemes,
+	upload: cli.upload,
+	download: cli.download,
+	watch: cli.watch,
+	remove: cli.remove,
+	new: cli.themeNew,
+	delete: cli.themeDelete,
+	configure: cli.themeConfigure,
+	list: cli.listThemes,
 };
 
 const helpCommands = {
@@ -284,3 +53,4 @@ else {
 		}
 	});
 }
+

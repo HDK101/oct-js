@@ -1,5 +1,5 @@
 const https = require("https");
-const safeParse = require("../../Util/JSONSafeParse");
+const safeParse = require("../Util/JSONSafeParse");
 
 class Requests {
 	constructor(params) {

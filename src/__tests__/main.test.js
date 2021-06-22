@@ -1,8 +1,6 @@
-const { Theme } = require("../App/Theme");
+const { Theme } = require("../Theme");
 const { stat } = require("fs").promises;
 const { timeout, testPath, key, password } = require("../Config/JestRuntime");
-
-require("dotenv").config();
 
 jest.setTimeout(timeout);
 
