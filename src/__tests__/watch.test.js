@@ -1,4 +1,4 @@
-const FWatcher = require("../App/Watch");
+const FWatcher = require("../Watch");
 const { timeout, watchTimeout, testPath } = require("../Config/JestRuntime");
 const { writeFile } = require("fs").promises;
 

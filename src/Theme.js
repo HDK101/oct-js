@@ -1,4 +1,4 @@
-const { version } = require("../Config/OpenCodeVersion");
+const { version } = require("./Config/OpenCodeVersion");
 
 const { resolve, dirname } = require("path");
 const { writeFile, stat, mkdir, readFile, readdir, unlink } = require("fs").promises;
@@ -6,7 +6,7 @@ const { writeFile, stat, mkdir, readFile, readdir, unlink } = require("fs").prom
 const FWatcher = require("./Watch");
 const Requests = require("./Requests");
 
-const { encode, decode } = require("../Util/Base64");
+const { encode, decode } = require("./Util/Base64");
 
 class Theme {
 	constructor(objectParams = {}, cliFunctions = {}) {
