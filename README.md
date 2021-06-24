@@ -1,5 +1,5 @@
 # OCT-JS
-Versão JS do OpenCode Theme
+Versão JS do OpenCode Theme, com poucas ou nenhuma dependências de pacotes. Tendo apenas o Jest no como dependência de desenvolvimento
 
 # Instalação
 `````
@@ -25,6 +25,14 @@ COMANDOS:
 `````
 
 # Desenvolvimento
+
+## Setup
+
+Rode install para instalar as dependências(apesar de uma no desenvolvimento, até agora)
+`````
+npm install
+`````
+
 ## Testes
 
 Os testes estão localizado dentro da pasta \_\_tests\_\_
@@ -34,7 +42,22 @@ npm run test
 `````
 
 # Scripts customizados
+Na pasta do tema, após crie um arquivo chamado oct.watch.js
 
+`````
+module.exports = [
+	{
+		// Extensões de arquivos
+		ext: /(.scss)|(.sass)/,
+		// Pasta que se sofrer alteração, chama as funções
+		folder: "/scss",
+		// Executa depois
+		postCallback: (file, pathFolder, mainPath) => {},
+		// Executa antes
+		preCallback: (file, pathFolder, mainPath) => {},
+	}
+]
+`````
 
 # Problemas
 - Requisições relacionados a deleção retornam código HTTP 400, apesar de realizar a deleção
