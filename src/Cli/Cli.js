@@ -195,6 +195,7 @@ class Cli {
 
 		themes.forEach(({ id, name, published }) => {
 			const publishedText = published == 1 ? "Publicado" : "Não publicado";
+
 			console.log(`\nNome: ${name}\nID: ${id}\n${publishedText}\n`);
 		});
 	}
