@@ -22,7 +22,8 @@ const commands = {
 const helpCommands = {
 	upload: [
 		"ARQUIVO  #Manda o arquivo pro servidor",
-		"--c  #Deleta todos os arquivos do tema no servidor e faz upload dos que estão na pasta "
+		"--c  #Deleta todos os arquivos do tema no servidor e faz upload dos que estão na pasta ",
+		"--a  #Upload de todos os arquivos que estão na pasta "
 	],
 	download: "#Faz download de todos os arquivos do tema",
 	watch: "#Assiste a pasta do tema e manda para o servidos as mudanças feitas",

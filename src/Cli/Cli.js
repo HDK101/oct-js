@@ -51,6 +51,10 @@ class Cli {
 			await theme.uploadAllAssets();
 			console.log("Todos os assets locais enviados para o tema");
 		}
+		else if(postArgument === "--a") {
+			await theme.uploadAllAssets();
+			console.log("Todos os assets locais enviados para o tema");
+		}
 		else {
 			const { response, err } = await theme.uploadAsset(postArgument);
 			if (!err) {
